@@ -13,6 +13,8 @@
  *
  * Aufruf:  node deploy.js            (deployt)
  *          node deploy.js --cleanup  (deployt + entfernt alte Node-Artefakte)
+ *          node deploy.js --migrate  (deployt + führt DB-Migration aus)
+ *          node deploy.js --migrate --cleanup  (alles auf einmal)
  */
 
 'use strict';
@@ -40,6 +42,7 @@ const SSH_KEY  = process.env.DEPLOY_SSH_KEY  || path.join(process.env.HOME || pr
 const WEB_ROOT = process.env.DEPLOY_WEBROOT  || '/www/htdocs/w021a129/rezepte.familie-ebert.net';
 const SITE     = 'https://rezepte.familie-ebert.net';
 const CLEANUP  = process.argv.includes('--cleanup');
+const MIGRATE  = process.argv.includes('--migrate');
 
 const LOCAL    = __dirname;
 const PHP_SRC  = path.join(LOCAL, 'backend-php');
@@ -160,7 +163,28 @@ async function main() {
     }
     ok('Frontend hochgeladen');
 
-    // 7. Optionale Bereinigung alter Node-Artefakte
+    // 7. Optionale DB-Migration
+    if (MIGRATE) {
+      log('DB-Migration ausführen (migrate-sharing.sql)...');
+      // DB-Zugangsdaten aus der .env auf dem Server lesen
+      const envRaw = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch = envRaw.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl  = new URL(dbUrlMatch[1]);
+      const dbUser = decodeURIComponent(dbUrl.username);
+      const dbPass = decodeURIComponent(dbUrl.password);
+      const dbHost = dbUrl.hostname;
+      const dbPort = dbUrl.port || '3306';
+      const dbName = dbUrl.pathname.replace(/^\//, '');
+      // Migration hochladen und ausführen
+      const migSql = path.join(LOCAL, 'setup', 'migrate-sharing.sql');
+      await put(s, migSql, `${WEB_ROOT}/.migrate-sharing.sql`);
+      await run(conn, `mysql -h ${dbHost} -P ${dbPort} -u '${dbUser}' -p'${dbPass}' ${dbName} < ${WEB_ROOT}/.migrate-sharing.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-sharing.sql`, { silent: true });
+      ok('DB-Migration abgeschlossen');
+    }
+
+    // 8. Optionale Bereinigung alter Node-Artefakte
     if (CLEANUP) {
       log('Alte Node-/Keepalive-/Watchdog-Artefakte entfernen...');
       // .env in .app/backend/ bleibt erhalten (config.php liest sie)!
@@ -187,6 +211,7 @@ async function main() {
 
     console.log('\n✅  Deployment abgeschlossen.');
     console.log('   Login testen:  ' + SITE + '  → "Mit Google anmelden"');
+    if (!MIGRATE) console.log('   Tipp: einmalig  "node deploy.js --migrate"  ausführen um die DB-Migration (Sharing) einzuspielen.');
     if (!CLEANUP) console.log('   Tipp: nach erfolgreichem Test  "node deploy.js --cleanup"  für die Bereinigung.');
 
   } finally {

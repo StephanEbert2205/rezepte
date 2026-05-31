@@ -7,11 +7,15 @@ final class Importer
     /**
      * @throws RuntimeException  Bei "DUPLICATE:{id}" oder Validierungs-/Fetch-Fehlern.
      */
-    public static function fromUrl(string $url, array $cfg): int
+    public static function fromUrl(string $url, array $cfg, int $userId): int
     {
         Fetch::validatePublicUrl($url);
 
-        $existing = Db::one("SELECT `id` FROM `recipes` WHERE `sourceUrl` = ?", [$url]);
+        // Duplikat-Check nur im Kontext des eigenen Nutzers (andere Nutzer dürfen dasselbe importieren)
+        $existing = Db::one(
+            "SELECT `id` FROM `recipes` WHERE `sourceUrl` = ? AND `userId` = ?",
+            [$url, $userId]
+        );
         if ($existing !== null) {
             throw new RuntimeException('DUPLICATE:' . (int) $existing['id']);
         }
@@ -19,27 +23,28 @@ final class Importer
         $html   = Fetch::html($url, $cfg['fetchTimeout'], $cfg['maxResponseSize']);
         $parsed = JsonLd::parse($html, $url);
 
-        return self::save($parsed);
+        return self::save($parsed, $userId);
     }
 
-    private static function save(array $parsed): int
+    private static function save(array $parsed, int $userId): int
     {
-        $servings   = $parsed['servings'] ?? 4;
-        $servings   = (int) $servings > 0 ? (int) $servings : 4;
+        $servings    = $parsed['servings'] ?? 4;
+        $servings    = (int) $servings > 0 ? (int) $servings : 4;
         $ingredients = $parsed['ingredients'] ?? [];
-        $normalized = Normalize::ingredients($ingredients, $servings);
-        $now = gmdate('Y-m-d H:i:s');
+        $normalized  = Normalize::ingredients($ingredients, $servings);
+        $now         = gmdate('Y-m-d H:i:s');
 
         Db::begin();
         try {
             Db::run(
                 "INSERT INTO `recipes`
-                    (`title`, `description`, `sourceUrl`, `sourceDomain`, `servingsOriginal`,
+                    (`userId`, `title`, `description`, `sourceUrl`, `sourceDomain`, `servingsOriginal`,
                      `servingsBase`, `prepTime`, `cookTime`, `totalTime`, `imageUrl`, `author`,
                      `isVegetarian`, `isVegan`, `isGlutenFree`, `isLactoseFree`,
                      `createdAt`, `updatedAt`)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)",
                 [
+                    $userId,
                     $parsed['title'] ?? 'Unbekanntes Rezept',
                     $parsed['description'] ?? null,
                     $parsed['sourceUrl'] ?? null,

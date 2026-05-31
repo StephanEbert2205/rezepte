@@ -51,6 +51,12 @@ export interface Nutrition {
 
 export interface Recipe {
   id: number;
+  /** ID des Besitzers; null für Legacy-Rezepte (vor Migration) */
+  userId: number | null;
+  /** Name des Besitzers (nur relevant wenn Fremd-Rezept) */
+  ownerName: string | null;
+  /** Darf der aktuelle Nutzer dieses Rezept bearbeiten? */
+  canEdit: boolean;
   title: string;
   description: string | null;
   sourceUrl: string | null;
@@ -88,4 +94,34 @@ export interface TagWithCount {
   id: number;
   name: string;
   count: number;
+}
+
+// ── Sharing ─────────────────────────────────────────────────────────────────
+
+export interface SharedUser {
+  id: number;
+  name: string;
+  email: string;
+  picture?: string | null;
+}
+
+export interface RecipeShare {
+  id: number;
+  recipeId: number;
+  canEdit: boolean;
+  sharedWith: SharedUser;
+}
+
+export interface ShareToken {
+  token: string;
+}
+
+// ── Konto-Verknüpfung ────────────────────────────────────────────────────────
+
+export interface AccountLink {
+  id: number;
+  status: 'pending' | 'accepted';
+  direction: 'outgoing' | 'incoming';
+  linkedUser: SharedUser;
+  createdAt: string;
 }

@@ -7,6 +7,8 @@ import RecipeDetailPage from './pages/RecipeDetailPage';
 import EditRecipePage from './pages/EditRecipePage';
 import AnleitungPage from './pages/AnleitungPage';
 import LoginPage from './pages/LoginPage';
+import SharedRecipePage from './pages/SharedRecipePage';
+import AccountLinksPage from './pages/AccountLinksPage';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -23,6 +25,8 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Öffentlich: Rezept-Vorschau per Token (kein Login nötig) */}
+        <Route path="/teilen/:token" element={<SharedRecipePage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -30,10 +34,14 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Geteiltes Rezept – auch für eingeloggte Nutzer zugänglich */}
+      <Route path="/teilen/:token" element={<SharedRecipePage />} />
+
       <Route element={<Layout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/anleitung" element={<AnleitungPage />} />
+        <Route path="/konten" element={<AccountLinksPage />} />
         <Route path="/rezepte/:id" element={<RecipeDetailPage />} />
         <Route path="/rezepte/:id/bearbeiten" element={<EditRecipePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

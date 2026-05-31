@@ -3,7 +3,12 @@ import { useSearchParams } from 'react-router-dom';
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
-  const hasError = searchParams.get('error') === '1';
+  const hasError  = searchParams.get('error') === '1';
+  const redirect  = searchParams.get('redirect') ?? '';
+  // Redirect-Param an Google-OAuth-Endpunkt weitergeben (wird nach Login genutzt)
+  const loginHref = redirect
+    ? `/api/auth/google?redirect=${encodeURIComponent(redirect)}`
+    : '/api/auth/google';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -21,7 +26,7 @@ export default function LoginPage() {
         )}
 
         <a
-          href="/api/auth/google"
+          href={loginHref}
           className="flex items-center justify-center gap-3 w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <GoogleIcon />

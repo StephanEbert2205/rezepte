@@ -10,9 +10,11 @@ datasource db {
 
 model Recipe {
   id               Int           @id @default(autoincrement())
+  userId           Int?
+  user             User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   title            String        @db.VarChar(500)
   description      String?       @db.Text
-  sourceUrl        String?       @unique @db.VarChar(1000)
+  sourceUrl        String?       @db.VarChar(1000)
   sourceDomain     String?       @db.VarChar(255)
   servingsOriginal Int?
   servingsBase     Int           @default(1)

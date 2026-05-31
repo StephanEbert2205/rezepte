@@ -1,9 +1,19 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { BookOpen, Plus, Search, HelpCircle, LogOut } from 'lucide-react';
+import { BookOpen, Plus, Search, HelpCircle, LogOut, Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { accountApi } from '../api/client';
 
 export default function Layout() {
   const { user, logout } = useAuth();
+
+  // Anzahl offener Verknüpfungsanfragen für Badge
+  const { data: links = [] } = useQuery({
+    queryKey: ['account-links'],
+    queryFn:  accountApi.getLinks,
+    refetchInterval: 60_000,
+  });
+  const pendingIncoming = links.filter((l) => l.direction === 'incoming' && l.status === 'pending').length;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -17,6 +27,7 @@ export default function Layout() {
           <nav className="flex items-center gap-1">
             <NavLink
               to="/"
+              end
               className={({ isActive }) =>
                 `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -47,6 +58,23 @@ export default function Layout() {
             >
               <HelpCircle className="w-4 h-4" />
               <span className="hidden sm:inline">Anleitung</span>
+            </NavLink>
+            <NavLink
+              to="/konten"
+              className={({ isActive }) =>
+                `relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`
+              }
+              title="Verknüpfte Konten"
+            >
+              <Link2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Konten</span>
+              {pendingIncoming > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {pendingIncoming}
+                </span>
+              )}
             </NavLink>
 
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-100">

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Recipe, RecipeListResponse, TagWithCount } from '../types/recipe';
+import { Recipe, RecipeListResponse, TagWithCount, RecipeShare, ShareToken, AccountLink } from '../types/recipe';
 
 const api = axios.create({
   baseURL: '/api',
@@ -35,6 +35,52 @@ export const recipeApi = {
 
   import: (url: string) =>
     api.post<{ id: number; message: string }>('/import', { url }).then((r) => r.data),
+
+  // ── Freigaben ─────────────────────────────────────────────────────────────
+
+  /** Erzeugt einen Freigabe-Token für das Rezept (Kopie-per-Link). */
+  createShareToken: (recipeId: number) =>
+    api.post<ShareToken>(`/recipes/${recipeId}/share/token`).then((r) => r.data),
+
+  /** Alle direkten Freigaben eines Rezepts (nur Besitzer). */
+  getShares: (recipeId: number) =>
+    api.get<RecipeShare[]>(`/recipes/${recipeId}/shares`).then((r) => r.data),
+
+  /** Rezept mit einem anderen Nutzer teilen (per E-Mail). */
+  addShare: (recipeId: number, email: string, canEdit: boolean) =>
+    api.post<RecipeShare>(`/recipes/${recipeId}/shares`, { email, canEdit }).then((r) => r.data),
+
+  /** Freigabe entfernen. */
+  removeShare: (recipeId: number, sharedWithId: number) =>
+    api.delete(`/recipes/${recipeId}/shares/${sharedWithId}`),
+
+  /** Rezept-Vorschau per Token abrufen (kein Login nötig). */
+  getSharedRecipe: (token: string) =>
+    api.get<Recipe>(`/shared/${token}`).then((r) => r.data),
+
+  /** Geteiltes Rezept in die eigene Sammlung kopieren. */
+  forkSharedRecipe: (token: string) =>
+    api.post<{ id: number; message: string }>(`/shared/${token}/fork`).then((r) => r.data),
+};
+
+// ── Konto-Verknüpfungen ────────────────────────────────────────────────────
+
+export const accountApi = {
+  /** Alle eigenen Verknüpfungen auflisten. */
+  getLinks: () =>
+    api.get<AccountLink[]>('/accounts/links').then((r) => r.data),
+
+  /** Verknüpfungsanfrage senden. */
+  requestLink: (email: string) =>
+    api.post<AccountLink>('/accounts/links', { email }).then((r) => r.data),
+
+  /** Ausstehende Anfrage annehmen. */
+  acceptLink: (id: number) =>
+    api.post<AccountLink>(`/accounts/links/${id}/accept`).then((r) => r.data),
+
+  /** Verknüpfung oder Anfrage entfernen. */
+  removeLink: (id: number) =>
+    api.delete(`/accounts/links/${id}`),
 };
 
 export default api;

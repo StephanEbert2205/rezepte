@@ -3,11 +3,6 @@ declare(strict_types=1);
 
 /**
  * Front-Controller für /api/*  (request-basiert, kein Daemon).
- *
- * Jede /api-Anfrage wird per .htaccess hierher umgeleitet. Das ersetzt das
- * komplette Express/Node-Backend und läuft stabil auf dem KAS-Shared-Hosting,
- * weil pro Request ein normaler PHP-Prozess startet und endet – nichts läuft
- * dauerhaft und kann daher auch nicht "gereapt" werden.
  */
 
 error_reporting(E_ALL);
@@ -22,7 +17,6 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-// Unerwartete Fehler in sauberes JSON verwandeln (statt HTML-Fehlerseite)
 set_exception_handler(static function (Throwable $e): void {
     if (!headers_sent()) {
         http_response_code(500);
@@ -40,11 +34,10 @@ $uri    = $_SERVER['REQUEST_URI'] ?? '/';
 $path   = parse_url($uri, PHP_URL_PATH) ?? '/';
 $path   = '/' . trim($path, '/');
 
-// führendes /api entfernen
 if ($path === '/api') {
     $path = '/';
 } elseif (str_starts_with($path, '/api/')) {
-    $path = substr($path, 4); // behält führenden Slash
+    $path = substr($path, 4);
 }
 
 $readJsonBody = static function () {
@@ -60,21 +53,30 @@ $readJsonBody = static function () {
 if ($path === '/auth/google' && $method === 'GET') {
     $state = bin2hex(random_bytes(16));
     $_SESSION['oauth_state'] = $state;
+    // Optionalen Redirect-Ziel in Session speichern
+    if (!empty($_GET['redirect'])) {
+        $_SESSION['oauth_redirect'] = (string) $_GET['redirect'];
+    }
     Response::redirect(GoogleOAuth::authUrl($cfg, $state));
 }
 
 if ($path === '/auth/google/callback' && $method === 'GET') {
-    $code  = $_GET['code']  ?? '';
-    $state = $_GET['state'] ?? '';
+    $code     = $_GET['code']  ?? '';
+    $state    = $_GET['state'] ?? '';
     $expected = $_SESSION['oauth_state'] ?? null;
-    unset($_SESSION['oauth_state']);
+    $redirect = $_SESSION['oauth_redirect'] ?? null;
+    unset($_SESSION['oauth_state'], $_SESSION['oauth_redirect']);
     try {
         if ($code === '' || $expected === null || !hash_equals((string) $expected, (string) $state)) {
             throw new RuntimeException('OAuth state/code ungültig');
         }
         $profile = GoogleOAuth::fetchProfile($cfg, (string) $code);
         Auth::loginWithGoogleProfile($profile);
-        Response::redirect($cfg['frontendUrl']);
+        // Nach Login: gespeicherten Redirect oder Startseite
+        $dest = ($redirect !== null && str_starts_with($redirect, '/'))
+            ? $cfg['frontendUrl'] . $redirect
+            : $cfg['frontendUrl'];
+        Response::redirect($dest);
     } catch (Throwable $e) {
         Response::redirect($cfg['frontendUrl'] . '/login?error=1');
     }
@@ -93,8 +95,19 @@ if ($path === '/auth/logout' && $method === 'POST') {
     Response::json(['ok' => true]);
 }
 
+// ── Öffentliche Freigabe-Route (kein Login nötig) ─────────────────────────────
+// GET /shared/:token  – Rezept-Vorschau für geteilten Link
+if (preg_match('#^/shared/([A-Fa-f0-9]{64})$#', $path, $m) && $method === 'GET') {
+    $recipe = Sharing::getRecipeByToken($m[1]);
+    if ($recipe === null) {
+        Response::error('Freigabelink ungültig oder abgelaufen', 404);
+    }
+    Response::json($recipe);
+}
+
 // ── Ab hier: Anmeldung erforderlich ──────────────────────────────────────────
-Auth::require();
+$me = Auth::require();
+$uid = $me['id'];
 
 // POST /import
 if ($path === '/import' && $method === 'POST') {
@@ -103,7 +116,7 @@ if ($path === '/import' && $method === 'POST') {
         Response::error($err, 400);
     }
     try {
-        $id = Importer::fromUrl($data['url'], $cfg);
+        $id = Importer::fromUrl($data['url'], $cfg, $uid);
         Response::json(['id' => $id, 'message' => 'Rezept erfolgreich importiert'], 201);
     } catch (RuntimeException $e) {
         $msg = $e->getMessage();
@@ -129,16 +142,115 @@ if ($path === '/recipes' && $method === 'GET') {
         'maxTime'      => isset($_GET['maxTime']) ? (int) $_GET['maxTime'] : null,
         'page'         => isset($_GET['page']) ? (int) $_GET['page'] : 1,
         'limit'        => isset($_GET['limit']) ? (int) $_GET['limit'] : 20,
-    ]);
+    ], $uid);
     Response::json($result);
 }
 
 // GET /recipes/tags
 if ($path === '/recipes/tags' && $method === 'GET') {
-    Response::json(Recipes::getAllTags());
+    Response::json(Recipes::getAllTags($uid));
 }
 
-// /recipes/:id  (GET, PUT, DELETE)
+// ── Freigabe-Routen ─────────────────────────────────────────────────────────
+
+// POST /recipes/:id/share/token  – Freigabelink (Token) erzeugen
+if (preg_match('#^/recipes/(\d+)/share/token$#', $path, $m) && $method === 'POST') {
+    try {
+        $result = Sharing::createToken((int) $m[1], $uid);
+        Response::json($result, 201);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 403);
+    }
+}
+
+// GET /recipes/:id/shares  – alle direkten Freigaben eines Rezepts
+if (preg_match('#^/recipes/(\d+)/shares$#', $path, $m) && $method === 'GET') {
+    try {
+        Response::json(Sharing::getSharesForRecipe((int) $m[1], $uid));
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 403);
+    }
+}
+
+// POST /recipes/:id/shares  – Rezept direkt mit User teilen
+if (preg_match('#^/recipes/(\d+)/shares$#', $path, $m) && $method === 'POST') {
+    $body  = $readJsonBody();
+    $email = trim((string) ($body['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        Response::error('Ungültige E-Mail-Adresse', 400);
+    }
+    $canEdit = !empty($body['canEdit']);
+    try {
+        $share = Sharing::shareWithUser((int) $m[1], $uid, $email, $canEdit);
+        Response::json($share, 201);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// DELETE /recipes/:id/shares/:sharedWithId  – Freigabe entfernen
+if (preg_match('#^/recipes/(\d+)/shares/(\d+)$#', $path, $m) && $method === 'DELETE') {
+    try {
+        Sharing::removeShare((int) $m[1], $uid, (int) $m[2]);
+        Response::noContent();
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 403);
+    }
+}
+
+// POST /shared/:token/fork  – geteiltes Rezept kopieren
+if (preg_match('#^/shared/([A-Fa-f0-9]{64})/fork$#', $path, $m) && $method === 'POST') {
+    try {
+        $newId = Sharing::forkByToken($m[1], $uid);
+        Response::json(['id' => $newId, 'message' => 'Rezept wurde in deine Sammlung kopiert'], 201);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// ── Kontoverbindungs-Routen ──────────────────────────────────────────────────
+
+// GET /accounts/links  – eigene Verknüpfungen auflisten
+if ($path === '/accounts/links' && $method === 'GET') {
+    Response::json(Accounts::getLinks($uid));
+}
+
+// POST /accounts/links  – Verknüpfungsanfrage senden
+if ($path === '/accounts/links' && $method === 'POST') {
+    $body  = $readJsonBody();
+    $email = trim((string) ($body['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        Response::error('Ungültige E-Mail-Adresse', 400);
+    }
+    try {
+        $link = Accounts::requestLink($uid, $email);
+        Response::json($link, 201);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// POST /accounts/links/:id/accept  – Anfrage annehmen
+if (preg_match('#^/accounts/links/(\d+)/accept$#', $path, $m) && $method === 'POST') {
+    try {
+        $link = Accounts::acceptLink((int) $m[1], $uid);
+        Response::json($link);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// DELETE /accounts/links/:id  – Verknüpfung entfernen
+if (preg_match('#^/accounts/links/(\d+)$#', $path, $m) && $method === 'DELETE') {
+    try {
+        Accounts::removeLink((int) $m[1], $uid);
+        Response::noContent();
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 403);
+    }
+}
+
+// ── /recipes/:id  (GET, PUT, DELETE) ────────────────────────────────────────
 if (preg_match('#^/recipes/([^/]+)$#', $path, $m)) {
     $idRaw = $m[1];
     if (!ctype_digit($idRaw)) {
@@ -147,7 +259,7 @@ if (preg_match('#^/recipes/([^/]+)$#', $path, $m)) {
     $id = (int) $idRaw;
 
     if ($method === 'GET') {
-        $recipe = Recipes::getById($id);
+        $recipe = Recipes::getById($id, $uid);
         if ($recipe === null) {
             Response::error('Rezept nicht gefunden', 404);
         }
@@ -159,15 +271,19 @@ if (preg_match('#^/recipes/([^/]+)$#', $path, $m)) {
         if ($err !== null) {
             Response::error($err, 400);
         }
-        [$recipe, $updErr] = Recipes::update($id, $data);
+        [$recipe, $updErr] = Recipes::update($id, $uid, $data);
         if ($updErr !== null) {
-            Response::error($updErr, 404);
+            Response::error($updErr, 403);
         }
         Response::json($recipe);
     }
 
     if ($method === 'DELETE') {
-        Recipes::delete($id);
+        try {
+            Recipes::delete($id, $uid);
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 403);
+        }
         Response::noContent();
     }
 }

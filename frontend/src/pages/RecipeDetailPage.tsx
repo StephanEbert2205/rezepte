@@ -2,24 +2,28 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Clock, Users, ChefHat, ExternalLink, Edit, Trash2, Eye, Leaf, Flame
+  Clock, Users, ChefHat, ExternalLink, Edit, Trash2, Eye, Leaf, Flame, Share2
 } from 'lucide-react';
 import { recipeApi } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import PortionSlider from '../components/PortionSlider';
 import IngredientList from '../components/IngredientList';
 import InstructionList from '../components/InstructionList';
+import ShareModal from '../components/ShareModal';
 import { formatDuration, formatDate } from '../utils/format';
 
 export default function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const recipeId = parseInt(id ?? '0');
 
   const [servings, setServings] = useState<number | null>(null);
   const [cookMode, setCookMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const { data: recipe, isLoading, isError } = useQuery({
     queryKey: ['recipe', recipeId],
@@ -64,15 +68,17 @@ export default function RecipeDetailPage() {
 
   const targetServings = servings ?? recipe.servingsOriginal ?? recipe.servingsBase;
   const hasCustom = Array.isArray(recipe.customIngredients) && recipe.customIngredients.length > 0;
+  const isOwner  = recipe.userId === null || recipe.userId === user?.id;
+  const canEdit  = recipe.canEdit;
 
   return (
     <div className={`max-w-4xl mx-auto px-4 py-6 ${cookMode ? 'text-lg' : ''}`}>
       {/* Back + actions */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">
           ← Alle Rezepte
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setCookMode(!cookMode)}
             className={`btn-secondary text-sm ${cookMode ? 'bg-brand-50 text-brand-700 border-brand-200' : ''}`}
@@ -80,30 +86,59 @@ export default function RecipeDetailPage() {
             <Eye className="w-4 h-4" />
             <span className="hidden sm:inline">{cookMode ? 'Normal' : 'Kochmodus'}</span>
           </button>
-          <Link to={`/rezepte/${recipe.id}/bearbeiten`} className="btn-secondary text-sm">
-            <Edit className="w-4 h-4" />
-            <span className="hidden sm:inline">Bearbeiten</span>
-          </Link>
-          {!confirmDelete ? (
-            <button onClick={() => setConfirmDelete(true)} className="btn-secondary text-sm text-red-500">
-              <Trash2 className="w-4 h-4" />
+
+          {canEdit && (
+            <Link to={`/rezepte/${recipe.id}/bearbeiten`} className="btn-secondary text-sm">
+              <Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Bearbeiten</span>
+            </Link>
+          )}
+
+          {isOwner && (
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="btn-secondary text-sm"
+              title="Rezept teilen"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Teilen</span>
             </button>
-          ) : (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => deleteMutation.mutate()}
-                className="btn-danger text-sm"
-                disabled={deleteMutation.isPending}
-              >
-                Löschen
+          )}
+
+          {isOwner && (
+            !confirmDelete ? (
+              <button onClick={() => setConfirmDelete(true)} className="btn-secondary text-sm text-red-500">
+                <Trash2 className="w-4 h-4" />
               </button>
-              <button onClick={() => setConfirmDelete(false)} className="btn-secondary text-sm">
-                Abbrechen
-              </button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => deleteMutation.mutate()}
+                  className="btn-danger text-sm"
+                  disabled={deleteMutation.isPending}
+                >
+                  Löschen
+                </button>
+                <button onClick={() => setConfirmDelete(false)} className="btn-secondary text-sm">
+                  Abbrechen
+                </button>
+              </div>
+            )
           )}
         </div>
       </div>
+
+      {/* Hinweis: Fremd-Rezept */}
+      {!isOwner && recipe.ownerName && (
+        <div className="mb-4 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-500 flex items-center gap-2">
+          <Users className="w-4 h-4 shrink-0" />
+          <span>
+            {canEdit
+              ? <>Dieses Rezept gehört <strong>{recipe.ownerName}</strong> – du hast Bearbeitungsrecht.</>
+              : <>Dieses Rezept wurde von <strong>{recipe.ownerName}</strong> mit dir geteilt.</>}
+          </span>
+        </div>
+      )}
 
       {/* Hero image */}
       {recipe.imageUrl && (
@@ -185,9 +220,8 @@ export default function RecipeDetailPage() {
       {/* Main content: ingredients + instructions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Ingredients */}
-        <div className={`${cookMode ? 'lg:col-span-1' : 'lg:col-span-1'}`}>
+        <div className="lg:col-span-1">
           <div className="sticky top-20">
-            {/* Header: title + toggle + portion slider */}
             <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
               <h2 className={`font-semibold text-gray-900 ${cookMode ? 'text-xl' : 'text-lg'}`}>
                 Zutaten
@@ -217,7 +251,6 @@ export default function RecipeDetailPage() {
               </div>
             </div>
 
-            {/* Ingredient list */}
             {showCustom && hasCustom ? (
               <ul className="space-y-2">
                 {recipe.customIngredients!.map((ing, i) => (
@@ -228,7 +261,7 @@ export default function RecipeDetailPage() {
                     }`}
                   >
                     <span className="w-24 shrink-0 text-sm font-medium text-brand-700 text-right tabular-nums">
-                      {[ing.amount, ing.unit].filter(Boolean).join(' ')}
+                      {[ing.amount, ing.unit].filter(Boolean).join(' ')}
                     </span>
                     <span className="text-sm text-gray-800">
                       {ing.name}
@@ -295,6 +328,15 @@ export default function RecipeDetailPage() {
       <p className="mt-10 text-xs text-gray-300 text-right">
         Hinzugefügt am {formatDate(recipe.createdAt)}
       </p>
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareModal
+          recipeId={recipe.id}
+          recipeTitle={recipe.title}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </div>
   );
 }
