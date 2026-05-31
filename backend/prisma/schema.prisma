@@ -1,0 +1,118 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex", "fullTextSearch"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Recipe {
+  id               Int           @id @default(autoincrement())
+  title            String        @db.VarChar(500)
+  description      String?       @db.Text
+  sourceUrl        String?       @unique @db.VarChar(1000)
+  sourceDomain     String?       @db.VarChar(255)
+  servingsOriginal Int?
+  servingsBase     Int           @default(1)
+  prepTime         Int?
+  cookTime         Int?
+  totalTime        Int?
+  imageUrl         String?       @db.VarChar(1000)
+  difficulty       String?       @db.VarChar(50)
+  author           String?       @db.VarChar(255)
+  isVegetarian     Boolean       @default(false)
+  isVegan          Boolean       @default(false)
+  isGlutenFree     Boolean       @default(false)
+  isLactoseFree     Boolean       @default(false)
+  customIngredients Json?
+  createdAt         DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ingredients      Ingredient[]
+  instructions     Instruction[]
+  tags             RecipeTag[]
+  nutrition        Nutrition?
+
+  @@fulltext([title, description])
+  @@map("recipes")
+}
+
+model Ingredient {
+  id              Int      @id @default(autoincrement())
+  recipeId        Int
+  name            String   @db.VarChar(500)
+  normalizedName  String?  @db.VarChar(500)
+  amountOriginal  String?  @db.VarChar(100)
+  unitOriginal    String?  @db.VarChar(50)
+  amountPerServing Decimal? @db.Decimal(10, 4)
+  unitNormalized  String?  @db.VarChar(50)
+  optional        Boolean  @default(false)
+  notes           String?  @db.VarChar(500)
+  sortOrder       Int      @default(0)
+  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("ingredients")
+}
+
+model Instruction {
+  id         Int    @id @default(autoincrement())
+  recipeId   Int
+  stepNumber Int
+  content    String @db.Text
+  recipe     Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("instructions")
+}
+
+model Tag {
+  id      Int         @id @default(autoincrement())
+  name    String      @unique @db.VarChar(100)
+  recipes RecipeTag[]
+
+  @@map("tags")
+}
+
+model RecipeTag {
+  recipeId Int
+  tagId    Int
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, tagId])
+  @@map("recipe_tags")
+}
+
+model Nutrition {
+  id       Int      @id @default(autoincrement())
+  recipeId Int      @unique
+  calories Decimal? @db.Decimal(10, 2)
+  protein  Decimal? @db.Decimal(10, 2)
+  fat      Decimal? @db.Decimal(10, 2)
+  carbs    Decimal? @db.Decimal(10, 2)
+  fiber    Decimal? @db.Decimal(10, 2)
+  sugar    Decimal? @db.Decimal(10, 2)
+  recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("nutrition")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  googleId  String   @unique @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  name      String   @db.VarChar(255)
+  picture   String?  @db.VarChar(1000)
+  createdAt DateTime @default(now())
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String   @db.Text
+  expiresAt DateTime
+
+  @@map("sessions")
+}

@@ -1,0 +1,59 @@
+# ============================================================================
+#  rezepte.familie-ebert.net  –  PHP-Backend + React-SPA
+#  Wird beim Deploy als  .htaccess  in den Webroot gelegt.
+#  Ersetzt den alten Reverse-Proxy auf Port 3001 (kein Node mehr).
+# ============================================================================
+
+Options -Indexes
+DirectoryIndex index.html
+
+# UTF-8 für Textdateien
+AddDefaultCharset UTF-8
+
+# ── Sensible Dateien/Verzeichnisse sperren ──────────────────────────────────
+# Backend-Code, Konfiguration, Logs, alte Keepalive-Artefakte
+<FilesMatch "(^\.env|\.env$|\.log$|\.pid$|\.sh$|\.map$)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # .app/ (altes Node-Backend + .env) niemals direkt ausliefern
+    RewriteRule ^\.app(/|$) - [F,L]
+    # Versteckte Dateien (.keepalive.* etc.) sperren – außer .well-known
+    RewriteCond %{REQUEST_URI} !^/\.well-known
+    RewriteRule (^|/)\.(?!htaccess) - [F,L]
+
+    # ── /api/*  →  PHP Front-Controller ────────────────────────────────────
+    # Schleifenschutz: nur beim ursprünglichen Request umschreiben
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
+    RewriteCond %{REQUEST_URI} ^/api(/|$)
+    RewriteRule ^ api/index.php [L]
+
+    # ── React-SPA: echte Dateien direkt ausliefern ─────────────────────────
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # ── alles andere → index.html (Client-seitiges Routing) ────────────────
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# ── Statische Assets cachen ─────────────────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+</IfModule>
+
+# index.html nie cachen (immer aktuelle App-Version)
+<IfModule mod_headers.c>
+    <FilesMatch "index\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+</IfModule>

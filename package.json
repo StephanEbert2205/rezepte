@@ -1,0 +1,22 @@
+{
+  "name": "rezepte-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=backend",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "start": "npm run start --workspace=backend",
+    "install:all": "npm install --workspace=backend && npm install --workspace=frontend",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:generate": "npm run db:generate --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "deploy": "node deploy.js"
+  },
+  "devDependencies": {
+    "ssh2": "^1.17.0"
+  }
+}
