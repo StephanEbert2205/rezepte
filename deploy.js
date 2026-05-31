@@ -151,6 +151,11 @@ async function main() {
     await put(s, path.join(PHP_SRC, 'webroot.htaccess'), `${WEB_ROOT}/.htaccess`);
     ok('.htaccess aktiv (PHP-Routing + SPA-Fallback)');
 
+    // 6a. Veraltete statische Dateien entfernen (würden SPA-Routing brechen)
+    await run(conn,
+      `rm -f ${WEB_ROOT}/anleitung ${WEB_ROOT}/anleitung.pdf ${WEB_ROOT}/anleitung.html 2>/dev/null; echo done`,
+      { silent: true });
+
     // 6. Frontend hochladen (Webroot; .app/.bin/api nicht anfassen)
     log('Frontend hochladen (Webroot)...');
     const skip = new Set(['api', '.htaccess']);
