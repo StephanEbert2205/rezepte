@@ -71,6 +71,13 @@ export default function AnleitungPage() {
           Zubereitungsschritte, Kochzeiten, Tags und Nährwerte aus strukturierten Quellen
           (z.&nbsp;B. Chefkoch, GuteKüche, BBC Food und viele mehr).
         </Feature>
+        <Feature title={<><Smartphone className="w-3.5 h-3.5 inline mr-1" />Rezept abfotografieren</>}>
+          Den Tab <Chip label="Foto" /> wählen, ein Foto des Rezepts aufnehmen oder aus der
+          Galerie auswählen und auf <Chip label="Rezept erkennen" /> tippen. Die KI
+          (Claude Vision) erkennt Titel, Zutaten und Zubereitungsschritte automatisch und
+          füllt das Bearbeitungsformular vor – danach noch einmal kurz prüfen und speichern.
+          Funktioniert mit Buchseiten, handgeschriebenen Zetteln und Screenshots.
+        </Feature>
         <Feature title="Manuell eingeben">
           Den Tab <Chip label="Manuell eingeben" /> wählen und das Rezept direkt eintippen –
           mit Titel, Beschreibung, Zutaten (Menge, Einheit, Name), Zubereitungsschritten,

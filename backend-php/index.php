@@ -109,6 +109,22 @@ if (preg_match('#^/shared/([A-Fa-f0-9]{64})$#', $path, $m) && $method === 'GET')
 $me = Auth::require();
 $uid = $me['id'];
 
+// POST /parse-image  – Rezeptfoto via KI analysieren (multipart/form-data)
+if ($path === '/parse-image' && $method === 'POST') {
+    if (empty($cfg['anthropicApiKey'])) {
+        Response::error('KI-Bildanalyse nicht konfiguriert (ANTHROPIC_API_KEY fehlt)', 503);
+    }
+    if (empty($_FILES['image'])) {
+        Response::error('Kein Bild empfangen', 400);
+    }
+    try {
+        $result = ImageParser::parse($_FILES['image'], $cfg['anthropicApiKey']);
+        Response::json($result);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 422);
+    }
+}
+
 // POST /import
 if ($path === '/import' && $method === 'POST') {
     [$data, $err] = Validator::importBody($readJsonBody());

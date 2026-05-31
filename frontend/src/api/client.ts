@@ -6,6 +6,23 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/** Vorausgefüllte Daten aus einer Foto-Erkennung (Felder sind optional). */
+export interface PrefilledData {
+  title?: string;
+  description?: string;
+  servingsOriginal?: number | null;
+  prepTime?: number | null;
+  cookTime?: number | null;
+  totalTime?: number | null;
+  isVegetarian?: boolean;
+  isVegan?: boolean;
+  isGlutenFree?: boolean;
+  isLactoseFree?: boolean;
+  tags?: string[];
+  ingredients?: CreateIngredient[];
+  instructions?: { content: string }[];
+}
+
 export interface CreateIngredient {
   name: string;
   amount: string;
@@ -64,6 +81,15 @@ export const recipeApi = {
   /** Rezept aus manueller Eingabe anlegen. */
   create: (data: CreateRecipeData) =>
     api.post<{ id: number; message: string }>('/recipes', data).then((r) => r.data),
+
+  /**
+   * Rezeptfoto via Claude Vision analysieren.
+   * Content-Type wird von axios automatisch auf multipart/form-data gesetzt.
+   */
+  parseImage: (formData: FormData) =>
+    api.post<PrefilledData>('/parse-image', formData, {
+      headers: { 'Content-Type': undefined },
+    }).then((r) => r.data),
 
   // ── Freigaben ─────────────────────────────────────────────────────────────
 

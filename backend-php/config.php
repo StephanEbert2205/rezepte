@@ -105,4 +105,6 @@ return [
     'fetchTimeout'        => 12,            // Sekunden
     'maxResponseSize'     => 10 * 1024 * 1024,
     'isProduction'        => $isHttps,
+    // Anthropic-API-Schlüssel für Foto-Analyse (optional)
+    'anthropicApiKey'     => $env['ANTHROPIC_API_KEY'] ?? '',
 ];
