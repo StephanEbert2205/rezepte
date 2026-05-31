@@ -250,6 +250,16 @@ if (preg_match('#^/accounts/links/(\d+)$#', $path, $m) && $method === 'DELETE') 
     }
 }
 
+// POST /recipes  – Rezept manuell anlegen
+if ($path === '/recipes' && $method === 'POST') {
+    [$data, $err] = Validator::createBody($readJsonBody());
+    if ($err !== null) {
+        Response::error($err, 400);
+    }
+    $id = Recipes::create($data, $uid);
+    Response::json(['id' => $id, 'message' => 'Rezept erfolgreich angelegt'], 201);
+}
+
 // ── /recipes/:id  (GET, PUT, DELETE) ────────────────────────────────────────
 if (preg_match('#^/recipes/([^/]+)$#', $path, $m)) {
     $idRaw = $m[1];

@@ -452,6 +452,96 @@ final class Recipes
     }
 
     /**
+     * Legt ein neues Rezept aus manueller Eingabe an.
+     * $data entspricht dem validierten Ergebnis von Validator::createBody().
+     */
+    public static function create(array $data, int $userId): int
+    {
+        $servings = isset($data['servingsOriginal']) && (int) $data['servingsOriginal'] > 0
+            ? (int) $data['servingsOriginal']
+            : 4;
+        $now = gmdate('Y-m-d H:i:s');
+
+        Db::begin();
+        try {
+            Db::run(
+                "INSERT INTO `recipes`
+                    (`userId`, `title`, `description`, `servingsOriginal`,
+                     `servingsBase`, `prepTime`, `cookTime`, `totalTime`, `imageUrl`,
+                     `isVegetarian`, `isVegan`, `isGlutenFree`, `isLactoseFree`,
+                     `createdAt`, `updatedAt`)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    $userId,
+                    $data['title'],
+                    ($data['description'] ?? '') !== '' ? $data['description'] : null,
+                    $data['servingsOriginal'] ?? null,
+                    $servings,
+                    $data['prepTime'] ?? null,
+                    $data['cookTime'] ?? null,
+                    $data['totalTime'] ?? null,
+                    $data['imageUrl'] ?? null,
+                    !empty($data['isVegetarian']) ? 1 : 0,
+                    !empty($data['isVegan'])      ? 1 : 0,
+                    !empty($data['isGlutenFree']) ? 1 : 0,
+                    !empty($data['isLactoseFree'])? 1 : 0,
+                    $now,
+                    $now,
+                ]
+            );
+            $recipeId = Db::lastId();
+
+            $insIng = Db::pdo()->prepare(
+                "INSERT INTO `ingredients`
+                    (`recipeId`, `name`, `normalizedName`, `amountOriginal`, `unitOriginal`,
+                     `amountPerServing`, `unitNormalized`, `optional`, `notes`, `sortOrder`)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            foreach (($data['ingredients'] ?? []) as $idx => $ing) {
+                $amount = $ing['amount'] ?? '';
+                $unit   = $ing['unit']   ?? '';
+                $amountPerServing = null;
+                if ($amount !== '' && is_numeric($amount) && $servings > 0) {
+                    $amountPerServing = (float) $amount / $servings;
+                }
+                $insIng->execute([
+                    $recipeId,
+                    $ing['name'],
+                    Normalize::ingredientName($ing['name']),
+                    $amount !== '' ? $amount : null,
+                    $unit   !== '' ? $unit   : null,
+                    $amountPerServing,
+                    $unit   !== '' ? $unit   : null,
+                    !empty($ing['optional']) ? 1 : 0,
+                    ($ing['notes'] ?? '') !== '' ? $ing['notes'] : null,
+                    $idx,
+                ]);
+            }
+
+            $insStep = Db::pdo()->prepare(
+                "INSERT INTO `instructions` (`recipeId`, `stepNumber`, `content`) VALUES (?, ?, ?)"
+            );
+            foreach (($data['instructions'] ?? []) as $idx => $inst) {
+                $insStep->execute([$recipeId, $idx + 1, $inst['content']]);
+            }
+
+            foreach (($data['tags'] ?? []) as $tagName) {
+                $tagId = self::upsertTag((string) $tagName);
+                Db::run(
+                    "INSERT IGNORE INTO `recipe_tags` (`recipeId`, `tagId`) VALUES (?, ?)",
+                    [$recipeId, $tagId]
+                );
+            }
+
+            Db::commit();
+            return $recipeId;
+        } catch (Throwable $e) {
+            Db::rollback();
+            throw $e;
+        }
+    }
+
+    /**
      * Löscht ein Rezept (nur der Besitzer darf löschen).
      * @throws RuntimeException wenn kein Eigentümer-Recht besteht
      */

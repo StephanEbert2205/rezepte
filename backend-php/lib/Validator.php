@@ -98,4 +98,96 @@ final class Validator
 
         return [$data, null];
     }
+
+    /**
+     * Validiert den Body für POST /recipes (manuelle Rezepteingabe).
+     * @return array{0:?array,1:?string}
+     */
+    public static function createBody($body): array
+    {
+        if (!is_array($body)) {
+            return [null, 'Ungültige Daten'];
+        }
+
+        // Titel (Pflichtfeld)
+        $title = trim((string) ($body['title'] ?? ''));
+        if ($title === '') {
+            return [null, 'Titel darf nicht leer sein'];
+        }
+        if (mb_strlen($title) > 500) {
+            return [null, 'Titel ist zu lang (max. 500 Zeichen)'];
+        }
+
+        // Bild-URL optional, aber wenn angegeben valide
+        $imageUrl = trim((string) ($body['imageUrl'] ?? ''));
+        if ($imageUrl !== '' && filter_var($imageUrl, FILTER_VALIDATE_URL) === false) {
+            return [null, 'Bild-URL ist ungültig'];
+        }
+
+        $data = [
+            'title'            => $title,
+            'description'      => trim((string) ($body['description'] ?? '')),
+            'servingsOriginal' => isset($body['servingsOriginal']) && (int) $body['servingsOriginal'] > 0
+                                    ? (int) $body['servingsOriginal'] : null,
+            'prepTime'         => isset($body['prepTime']) && (int) $body['prepTime'] >= 0
+                                    ? (int) $body['prepTime'] : null,
+            'cookTime'         => isset($body['cookTime']) && (int) $body['cookTime'] >= 0
+                                    ? (int) $body['cookTime'] : null,
+            'totalTime'        => isset($body['totalTime']) && (int) $body['totalTime'] >= 0
+                                    ? (int) $body['totalTime'] : null,
+            'imageUrl'         => $imageUrl !== '' ? $imageUrl : null,
+            'isVegetarian'     => !empty($body['isVegetarian']),
+            'isVegan'          => !empty($body['isVegan']),
+            'isGlutenFree'     => !empty($body['isGlutenFree']),
+            'isLactoseFree'    => !empty($body['isLactoseFree']),
+            'tags'             => [],
+            'ingredients'      => [],
+            'instructions'     => [],
+        ];
+
+        // Tags
+        if (!empty($body['tags']) && is_array($body['tags'])) {
+            foreach ($body['tags'] as $t) {
+                $t = trim((string) $t);
+                if ($t !== '') {
+                    $data['tags'][] = $t;
+                }
+            }
+        }
+
+        // Zutaten
+        if (!empty($body['ingredients']) && is_array($body['ingredients'])) {
+            foreach ($body['ingredients'] as $ing) {
+                if (!is_array($ing)) {
+                    continue;
+                }
+                $name = trim((string) ($ing['name'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+                $data['ingredients'][] = [
+                    'name'     => $name,
+                    'amount'   => trim((string) ($ing['amount'] ?? '')),
+                    'unit'     => trim((string) ($ing['unit'] ?? '')),
+                    'optional' => !empty($ing['optional']),
+                    'notes'    => trim((string) ($ing['notes'] ?? '')),
+                ];
+            }
+        }
+
+        // Zubereitungsschritte
+        if (!empty($body['instructions']) && is_array($body['instructions'])) {
+            foreach ($body['instructions'] as $inst) {
+                if (!is_array($inst)) {
+                    continue;
+                }
+                $content = trim((string) ($inst['content'] ?? ''));
+                if ($content !== '') {
+                    $data['instructions'][] = ['content' => $content];
+                }
+            }
+        }
+
+        return [$data, null];
+    }
 }

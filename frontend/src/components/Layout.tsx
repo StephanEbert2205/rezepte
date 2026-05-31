@@ -54,7 +54,7 @@ export default function Layout() {
               }
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Importieren</span>
+              <span className="hidden sm:inline">Hinzufügen</span>
             </NavLink>
 
             <NavLink

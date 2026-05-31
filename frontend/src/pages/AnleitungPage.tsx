@@ -59,16 +59,22 @@ export default function AnleitungPage() {
         an, teile Lieblings­rezepte und verwalte alles zentral.
       </p>
 
-      {/* ── Rezepte importieren ─────────────────────────────────────────── */}
-      <Section icon={Plus} title="Rezepte importieren">
+      {/* ── Rezepte hinzufügen ──────────────────────────────────────────── */}
+      <Section icon={Plus} title="Rezepte hinzufügen">
         <p>
-          Rezepte werden direkt per URL importiert. Die App erkennt automatisch Titel, Zutaten,
-          Zubereitungsschritte, Kochzeiten, Tags und Nährwerte aus strukturierten Rezept-Seiten
-          (z.&nbsp;B. Chefkoch, GuteKüche, BBC Food und viele mehr).
+          Über <Chip label="Hinzufügen" /> in der Navigationsleiste gibt es zwei Wege, ein
+          Rezept in die Sammlung aufzunehmen.
         </p>
-        <Feature title="Rezept per URL importieren">
-          Tippe in der Navigationsleiste auf <Chip label="Importieren" />, füge die URL eines
-          Rezepts ein und bestätige. Titel, Zutaten und Anleitung werden automatisch übernommen.
+        <Feature title="Per URL importieren">
+          Den Tab <Chip label="Per URL importieren" /> wählen, die Adresse einer Rezeptseite
+          einfügen und bestätigen. Die App erkennt automatisch Titel, Zutaten,
+          Zubereitungsschritte, Kochzeiten, Tags und Nährwerte aus strukturierten Quellen
+          (z.&nbsp;B. Chefkoch, GuteKüche, BBC Food und viele mehr).
+        </Feature>
+        <Feature title="Manuell eingeben">
+          Den Tab <Chip label="Manuell eingeben" /> wählen und das Rezept direkt eintippen –
+          mit Titel, Beschreibung, Zutaten (Menge, Einheit, Name), Zubereitungsschritten,
+          Kochzeiten und Diät-Flags. Ideal für Rezepte aus Büchern oder eigene Kreationen.
         </Feature>
         <Feature title="Direkt vom Smartphone teilen">
           Öffne ein Rezept im Browser und tippe im Teilen-Menü auf <Chip label="Rezept speichern" />{' '}

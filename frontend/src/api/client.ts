@@ -6,6 +6,31 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+export interface CreateIngredient {
+  name: string;
+  amount: string;
+  unit: string;
+  optional: boolean;
+  notes: string;
+}
+
+export interface CreateRecipeData {
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  servingsOriginal?: number;
+  prepTime?: number;
+  cookTime?: number;
+  totalTime?: number;
+  isVegetarian?: boolean;
+  isVegan?: boolean;
+  isGlutenFree?: boolean;
+  isLactoseFree?: boolean;
+  tags?: string[];
+  ingredients?: CreateIngredient[];
+  instructions?: { content: string }[];
+}
+
 export interface ListParams {
   search?: string;
   tags?: string;
@@ -35,6 +60,10 @@ export const recipeApi = {
 
   import: (url: string) =>
     api.post<{ id: number; message: string }>('/import', { url }).then((r) => r.data),
+
+  /** Rezept aus manueller Eingabe anlegen. */
+  create: (data: CreateRecipeData) =>
+    api.post<{ id: number; message: string }>('/recipes', data).then((r) => r.data),
 
   // ── Freigaben ─────────────────────────────────────────────────────────────
 
