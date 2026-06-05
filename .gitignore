@@ -16,3 +16,4 @@ frontend/dist/
 .env.*.local
 pnpm-lock.yaml
 package-lock.json
+lecker_page.html

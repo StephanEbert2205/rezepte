@@ -57,21 +57,40 @@ if ($path === '/auth/google' && $method === 'GET') {
     if (!empty($_GET['redirect'])) {
         $_SESSION['oauth_redirect'] = (string) $_GET['redirect'];
     }
+    // Einladungs-Token aus dem Query-Parameter übernehmen
+    if (!empty($_GET['invite'])) {
+        $_SESSION['oauth_invite'] = (string) $_GET['invite'];
+    }
     Response::redirect(GoogleOAuth::authUrl($cfg, $state));
 }
 
 if ($path === '/auth/google/callback' && $method === 'GET') {
-    $code     = $_GET['code']  ?? '';
-    $state    = $_GET['state'] ?? '';
-    $expected = $_SESSION['oauth_state'] ?? null;
-    $redirect = $_SESSION['oauth_redirect'] ?? null;
-    unset($_SESSION['oauth_state'], $_SESSION['oauth_redirect']);
+    $code        = $_GET['code']  ?? '';
+    $state       = $_GET['state'] ?? '';
+    $expected    = $_SESSION['oauth_state']   ?? null;
+    $redirect    = $_SESSION['oauth_redirect'] ?? null;
+    $inviteToken = $_SESSION['oauth_invite']   ?? null;
+    unset($_SESSION['oauth_state'], $_SESSION['oauth_redirect'], $_SESSION['oauth_invite']);
     try {
         if ($code === '' || $expected === null || !hash_equals((string) $expected, (string) $state)) {
             throw new RuntimeException('OAuth state/code ungültig');
         }
         $profile = GoogleOAuth::fetchProfile($cfg, (string) $code);
         Auth::loginWithGoogleProfile($profile);
+
+        // Einladungs-Token verarbeiten: pending Link anlegen und sofort annehmen
+        if ($inviteToken !== null) {
+            $loggedUser = Auth::currentUser();
+            if ($loggedUser !== null) {
+                try {
+                    $lnk = Accounts::processInvitation($inviteToken, (int) $loggedUser['id']);
+                    Accounts::acceptLink((int) $lnk['id'], (int) $loggedUser['id']);
+                } catch (Throwable) {
+                    // Fehler ignorieren – Nutzer sieht ggf. Hinweis im Profil
+                }
+            }
+        }
+
         // Nach Login: gespeicherten Redirect oder Startseite
         $dest = ($redirect !== null && str_starts_with($redirect, '/'))
             ? $cfg['frontendUrl'] . $redirect
@@ -95,7 +114,17 @@ if ($path === '/auth/logout' && $method === 'POST') {
     Response::json(['ok' => true]);
 }
 
-// ── Öffentliche Freigabe-Route (kein Login nötig) ─────────────────────────────
+// ── Öffentliche Routen (kein Login nötig) ────────────────────────────────────
+
+// GET /invitations/:token  – Einladungs-Details für die Landingpage
+if (preg_match('#^/invitations/([A-Fa-f0-9]{64})$#', $path, $m) && $method === 'GET') {
+    $inv = Accounts::getInvitationByToken($m[1]);
+    if ($inv === null) {
+        Response::error('Einladung nicht gefunden oder abgelaufen', 404);
+    }
+    Response::json($inv);
+}
+
 // GET /shared/:token  – Rezept-Vorschau für geteilten Link
 if (preg_match('#^/shared/([A-Fa-f0-9]{64})$#', $path, $m) && $method === 'GET') {
     $recipe = Sharing::getRecipeByToken($m[1]);
@@ -105,9 +134,21 @@ if (preg_match('#^/shared/([A-Fa-f0-9]{64})$#', $path, $m) && $method === 'GET')
     Response::json($recipe);
 }
 
+// GET /changelog  – öffentliche App-Updates (keine Anmeldung nötig)
+if ($path === '/changelog' && $method === 'GET') {
+    Response::json(Changelog::listPublished());
+}
+
 // ── Ab hier: Anmeldung erforderlich ──────────────────────────────────────────
+// (POST /changelog/read wird weiter unten nach dem Auth-Check behandelt)
 $me = Auth::require();
 $uid = $me['id'];
+
+// POST /changelog/read  – Changelog als gelesen markieren
+if ($path === '/changelog/read' && $method === 'POST') {
+    Changelog::markRead($uid);
+    Response::json(['ok' => true]);
+}
 
 // POST /parse-image  – Rezeptfoto via KI analysieren (multipart/form-data)
 if ($path === '/parse-image' && $method === 'POST') {
@@ -231,7 +272,7 @@ if ($path === '/accounts/links' && $method === 'GET') {
     Response::json(Accounts::getLinks($uid));
 }
 
-// POST /accounts/links  – Verknüpfungsanfrage senden
+// POST /accounts/links  – Verknüpfungsanfrage senden (oder Einladung verschicken)
 if ($path === '/accounts/links' && $method === 'POST') {
     $body  = $readJsonBody();
     $email = trim((string) ($body['email'] ?? ''));
@@ -239,8 +280,34 @@ if ($path === '/accounts/links' && $method === 'POST') {
         Response::error('Ungültige E-Mail-Adresse', 400);
     }
     try {
-        $link = Accounts::requestLink($uid, $email);
-        Response::json($link, 201);
+        $result = Accounts::requestLink($uid, $email, $cfg);
+        Response::json($result, 201);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// GET /accounts/invitations  – eigene gesendete Einladungen auflisten
+if ($path === '/accounts/invitations' && $method === 'GET') {
+    Response::json(Accounts::getInvitations($uid));
+}
+
+// DELETE /accounts/invitations/:id  – Einladung zurückziehen
+if (preg_match('#^/accounts/invitations/(\d+)$#', $path, $m) && $method === 'DELETE') {
+    try {
+        Accounts::cancelInvitation((int) $m[1], $uid);
+        Response::noContent();
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 404);
+    }
+}
+
+// POST /invitations/:token/accept  – Einladung annehmen (eingeloggter Nutzer)
+if (preg_match('#^/invitations/([A-Fa-f0-9]{64})/accept$#', $path, $m) && $method === 'POST') {
+    try {
+        $lnk      = Accounts::processInvitation($m[1], $uid);
+        $accepted = Accounts::acceptLink((int) $lnk['id'], $uid);
+        Response::json($accepted, 201);
     } catch (RuntimeException $e) {
         Response::error($e->getMessage(), 400);
     }
@@ -311,6 +378,184 @@ if (preg_match('#^/recipes/([^/]+)$#', $path, $m)) {
             Response::error($e->getMessage(), 403);
         }
         Response::noContent();
+    }
+}
+
+// ── Rezept-Meldungen ─────────────────────────────────────────────────────────
+
+// POST /recipes/:id/report  – Problem melden
+if (preg_match('#^/recipes/(\d+)/report$#', $path, $m) && $method === 'POST') {
+    $body       = $readJsonBody();
+    $categories = array_values(array_filter(
+        is_array($body['categories'] ?? null) ? $body['categories'] : [],
+        'is_string'
+    ));
+    $comment    = trim((string) ($body['comment'] ?? ''));
+    try {
+        $id = Reports::create((int) $m[1], $uid, $categories, $comment);
+        Response::json(['id' => $id, 'message' => 'Meldung eingereicht'], 201);
+    } catch (RuntimeException $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// ── Admin-Routen ─────────────────────────────────────────────────────────────
+
+if (str_starts_with($path, '/admin')) {
+    Auth::requireAdmin(); // wirft 401/403 wenn nicht Admin
+
+    // GET /admin/stats
+    if ($path === '/admin/stats' && $method === 'GET') {
+        Response::json(Admin::getStats());
+    }
+
+    // GET /admin/users
+    if ($path === '/admin/users' && $method === 'GET') {
+        Response::json(Admin::getUsers());
+    }
+
+    // POST /admin/users/:id/toggle-admin
+    if (preg_match('#^/admin/users/(\d+)/toggle-admin$#', $path, $m) && $method === 'POST') {
+        try {
+            Response::json(Admin::toggleAdmin((int) $m[1], $uid));
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    // GET /admin/recipes
+    if ($path === '/admin/recipes' && $method === 'GET') {
+        Response::json(Admin::listRecipes([
+            'search' => $_GET['search'] ?? '',
+            'userId' => isset($_GET['userId']) ? (int) $_GET['userId'] : 0,
+            'page'   => isset($_GET['page'])   ? (int) $_GET['page']   : 1,
+            'limit'  => isset($_GET['limit'])  ? (int) $_GET['limit']  : 20,
+        ]));
+    }
+
+    // GET /admin/links
+    if ($path === '/admin/links' && $method === 'GET') {
+        Response::json(Admin::getLinks());
+    }
+
+    // GET /admin/reports?status=open|resolved|all
+    if ($path === '/admin/reports' && $method === 'GET') {
+        $status = $_GET['status'] ?? 'open';
+        Response::json(Reports::getAll($status));
+    }
+
+    // POST /admin/reports/:id/resolve
+    if (preg_match('#^/admin/reports/(\d+)/resolve$#', $path, $m) && $method === 'POST') {
+        try {
+            Reports::resolve((int) $m[1]);
+            Response::json(['ok' => true]);
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 404);
+        }
+    }
+
+    // ── Changelog-Verwaltung ─────────────────────────────────────────────────
+
+    // ── Changelog: Einträge ──────────────────────────────────────────────────
+
+    // GET /admin/changelog  – alle Einträge inkl. Entwürfe
+    if ($path === '/admin/changelog' && $method === 'GET') {
+        Response::json(Changelog::listAll());
+    }
+
+    // POST /admin/changelog  – neuen Eintrag anlegen
+    if ($path === '/admin/changelog' && $method === 'POST') {
+        try {
+            $entry = Changelog::create($readJsonBody());
+            Response::json($entry, 201);
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    // PUT /admin/changelog/:id  – Eintrag bearbeiten
+    if (preg_match('#^/admin/changelog/(\d+)$#', $path, $m) && $method === 'PUT') {
+        try {
+            $entry = Changelog::update((int) $m[1], $readJsonBody());
+            Response::json($entry);
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    // DELETE /admin/changelog/:id  – Eintrag löschen
+    if (preg_match('#^/admin/changelog/(\d+)$#', $path, $m) && $method === 'DELETE') {
+        Changelog::delete((int) $m[1]);
+        Response::noContent();
+    }
+
+    // POST /admin/changelog/:id/publish  – veröffentlichen
+    if (preg_match('#^/admin/changelog/(\d+)/publish$#', $path, $m) && $method === 'POST') {
+        Response::json(Changelog::publish((int) $m[1]));
+    }
+
+    // POST /admin/changelog/:id/unpublish  – zurück auf Entwurf
+    if (preg_match('#^/admin/changelog/(\d+)/unpublish$#', $path, $m) && $method === 'POST') {
+        Response::json(Changelog::unpublish((int) $m[1]));
+    }
+
+    // ── Changelog: Commit-Review ─────────────────────────────────────────────
+
+    // POST /admin/changelog/import-commits  – neue Commits aus .pending-commits.json importieren
+    if ($path === '/admin/changelog/import-commits' && $method === 'POST') {
+        Response::json(Changelog::importCommits());
+    }
+
+    // GET /admin/changelog/commits  – alle Commits (optional ?status=pending|included|skipped)
+    if ($path === '/admin/changelog/commits' && $method === 'GET') {
+        $status = isset($_GET['status']) && $_GET['status'] !== '' ? (string) $_GET['status'] : null;
+        Response::json(Changelog::listCommits($status));
+    }
+
+    // POST /admin/changelog/commits/:id/include  – Commit aufnehmen
+    if (preg_match('#^/admin/changelog/commits/(\d+)/include$#', $path, $m) && $method === 'POST') {
+        try {
+            Response::json(Changelog::decideCommit((int) $m[1], 'included'));
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    // POST /admin/changelog/commits/:id/skip  – Commit überspringen
+    if (preg_match('#^/admin/changelog/commits/(\d+)/skip$#', $path, $m) && $method === 'POST') {
+        try {
+            Response::json(Changelog::decideCommit((int) $m[1], 'skipped'));
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    // POST /admin/changelog/bulk-decide  – Massen-Entscheidung
+    // Body: { filter: 'non-technical'|'technical'|'all', decision: 'included'|'skipped' }
+    if ($path === '/admin/changelog/bulk-decide' && $method === 'POST') {
+        $body     = $readJsonBody();
+        $filter   = (string) ($body['filter']   ?? 'non-technical');
+        $decision = (string) ($body['decision'] ?? 'included');
+        try {
+            $count = Changelog::bulkDecide($filter, $decision);
+            Response::json(['affected' => $count]);
+        } catch (RuntimeException $e) {
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    // POST /admin/changelog/build-draft  – Entwurf aus aufgenommenen Commits erstellen
+    if ($path === '/admin/changelog/build-draft' && $method === 'POST') {
+        $entry = Changelog::buildDraft();
+        if ($entry === null) {
+            Response::error('Keine aufgenommenen Commits ohne Eintrag vorhanden', 400);
+        }
+        Response::json($entry, 201);
+    }
+
+    // GET /admin/changelog/pending-count  – Badge-Zähler
+    if ($path === '/admin/changelog/pending-count' && $method === 'GET') {
+        Response::json(['count' => Changelog::countPending()]);
     }
 }
 

@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rezeptsammlung – Handbuch</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:      #ee7a1b;
+      --brand-dark: #b94810;
+      --brand-light:#fef7ee;
+      --brand-mid:  #fad7ac;
+      --gray-50:  #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --radius:   .75rem;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--gray-800);
+      background: var(--gray-50);
+    }
+
+    a { color: var(--brand); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .page-wrap {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────── */
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: white;
+      border-right: 1px solid var(--gray-200);
+      padding: 1.5rem 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: 0 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--gray-100);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar-logo {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: .6rem;
+      background: var(--brand);
+      color: white;
+      font-size: 1.3rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-title { font-size: .9rem; font-weight: 700; color: var(--gray-900); }
+    .sidebar-sub   { font-size: .75rem; color: var(--gray-400); }
+
+    .nav-group { margin-bottom: .25rem; }
+
+    .nav-group-label {
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      padding: .5rem 1.25rem .25rem;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .4rem 1.25rem;
+      font-size: .83rem;
+      color: var(--gray-500);
+      border-left: 2px solid transparent;
+      transition: all .15s;
+    }
+
+    .nav-link:hover { color: var(--brand); text-decoration: none; background: var(--brand-light); }
+    .nav-link.active { color: var(--brand); border-left-color: var(--brand); font-weight: 600; background: var(--brand-light); }
+
+    .nav-icon { font-size: 1rem; flex-shrink: 0; }
+
+    /* ── Main content ─────────────────────────────────────────────────── */
+    .main {
+      padding: 2.5rem 3rem;
+      max-width: 860px;
+    }
+
+    /* ── Hero ─────────────────────────────────────────────────────────── */
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .hero-logo {
+      width: 3.5rem;
+      height: 3.5rem;
+      border-radius: .875rem;
+      background: var(--brand);
+      color: white;
+      font-size: 1.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .hero h1 { font-size: 1.5rem; font-weight: 800; color: var(--gray-900); line-height: 1.2; }
+    .hero .hero-sub { font-size: .9rem; color: var(--gray-500); margin-top: .35rem; }
+
+    /* ── Sections ─────────────────────────────────────────────────────── */
+    .section { margin-bottom: 3.5rem; scroll-margin-top: 1.5rem; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: .625rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: .75rem;
+      border-bottom: 2px solid var(--brand-mid);
+    }
+
+    .section-icon {
+      font-size: 1.15rem;
+      background: var(--brand-light);
+      color: var(--brand);
+      width: 2rem;
+      height: 2rem;
+      border-radius: .5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--gray-900);
+    }
+
+    .section > p {
+      color: var(--gray-500);
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── Feature cards ────────────────────────────────────────────────── */
+    .feature {
+      border-left: 3px solid var(--brand-mid);
+      padding: .75rem 1rem;
+      margin-bottom: .875rem;
+      background: white;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .feature-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: .3rem;
+    }
+
+    .feature p, .feature li {
+      font-size: .875rem;
+      color: var(--gray-500);
+    }
+
+    .feature ul, .feature ol {
+      margin-top: .5rem;
+      padding-left: 1.4rem;
+    }
+
+    .feature li { margin-bottom: .3rem; }
+
+    /* ── Info boxes ───────────────────────────────────────────────────── */
+    .info-box {
+      background: var(--brand-light);
+      border: 1px solid var(--brand-mid);
+      border-radius: var(--radius);
+      padding: .875rem 1rem;
+      font-size: .85rem;
+      color: #92400e;
+      margin: 1rem 0;
+    }
+
+    .info-box strong { color: var(--brand-dark); }
+
+    .tip-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: var(--radius);
+      padding: .875rem 1rem;
+      font-size: .85rem;
+      color: #166534;
+      margin: 1rem 0;
+    }
+
+    .warning-box {
+      background: #fefce8;
+      border: 1px solid #fde68a;
+      border-radius: var(--radius);
+      padding: .875rem 1rem;
+      font-size: .85rem;
+      color: #854d0e;
+      margin: 1rem 0;
+    }
+
+    /* ── Chip ─────────────────────────────────────────────────────────── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: .15rem .5rem;
+      border-radius: .375rem;
+      background: var(--gray-100);
+      color: var(--gray-700);
+      font-size: .78rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* ── Code ─────────────────────────────────────────────────────────── */
+    code {
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-size: .82em;
+      background: var(--gray-100);
+      color: var(--brand-dark);
+      padding: .1em .35em;
+      border-radius: .25rem;
+    }
+
+    pre {
+      background: var(--gray-900);
+      color: #e5e7eb;
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      font-size: .82rem;
+      overflow-x: auto;
+      margin: .75rem 0;
+      line-height: 1.6;
+    }
+
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+    /* ── Table ────────────────────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .875rem;
+      margin: 1rem 0;
+    }
+
+    th {
+      text-align: left;
+      padding: .5rem .75rem;
+      background: var(--gray-100);
+      color: var(--gray-700);
+      font-weight: 600;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    td {
+      padding: .5rem .75rem;
+      border-bottom: 1px solid var(--gray-100);
+      color: var(--gray-600);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    /* ── Badge row ────────────────────────────────────────────────────── */
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin: .5rem 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .3rem .7rem;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-orange { background: var(--brand-light); color: var(--brand-dark); }
+    .badge-gray   { background: var(--gray-100); color: var(--gray-700); }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+
+    /* ── Steps list ───────────────────────────────────────────────────── */
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: .875rem;
+      margin-bottom: .875rem;
+      font-size: .875rem;
+      color: var(--gray-600);
+    }
+
+    .steps li::before {
+      content: counter(step);
+      min-width: 1.6rem;
+      height: 1.6rem;
+      border-radius: 50%;
+      background: var(--brand);
+      color: white;
+      font-size: .75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: .1rem;
+    }
+
+    /* ── Two-col grid ─────────────────────────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .col-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+
+    .col-card h4 {
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: .5rem;
+    }
+
+    .col-card p, .col-card li {
+      font-size: .82rem;
+      color: var(--gray-500);
+    }
+
+    .col-card ol, .col-card ul {
+      padding-left: 1.2rem;
+    }
+
+    .col-card li { margin-bottom: .25rem; }
+
+    /* ── Divider ──────────────────────────────────────────────────────── */
+    hr { border: none; border-top: 1px solid var(--gray-200); margin: 2rem 0; }
+
+    /* ── Print ────────────────────────────────────────────────────────── */
+    @media print {
+      .sidebar { display: none; }
+      .page-wrap { grid-template-columns: 1fr; }
+      .main { padding: 1rem; max-width: 100%; }
+      .feature { break-inside: avoid; }
+      .section { break-inside: avoid; }
+    }
+
+    /* ── Mobile ───────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .page-wrap { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .main { padding: 1.5rem 1.25rem; }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────── -->
+  <nav class="sidebar" aria-label="Navigation">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">R</div>
+      <div>
+        <div class="sidebar-title">Rezeptsammlung</div>
+        <div class="sidebar-sub">Handbuch</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Erste Schritte</div>
+      <a href="#ueberblick"  class="nav-link">📋 Überblick</a>
+      <a href="#anmeldung"   class="nav-link">🔑 Anmeldung</a>
+      <a href="#installieren" class="nav-link">📲 App installieren</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Rezepte</div>
+      <a href="#hinzufuegen" class="nav-link">➕ Hinzufügen</a>
+      <a href="#suchen"      class="nav-link">🔍 Suchen &amp; Filtern</a>
+      <a href="#ansicht"     class="nav-link">📖 Rezeptansicht</a>
+      <a href="#bearbeiten"  class="nav-link">✏️ Bearbeiten &amp; Löschen</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Teilen &amp; Zusammenarbeit</div>
+      <a href="#teilen"      class="nav-link">🔗 Rezepte teilen</a>
+      <a href="#konten"      class="nav-link">👥 Konten verknüpfen</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Profil &amp; Einstellungen</div>
+      <a href="#profil"      class="nav-link">👤 Profil</a>
+      <a href="#einstellungen" class="nav-link">⚙️ Einstellungen</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Erweitert</div>
+      <a href="#kurzbefehle" class="nav-link">⚡ Kurzbefehle</a>
+      <a href="#api"         class="nav-link">🔌 API-Zugang</a>
+    </div>
+  </nav>
+
+  <!-- ── Main ─────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-logo">R</div>
+      <div>
+        <h1>Rezeptsammlung – Handbuch</h1>
+        <p class="hero-sub">
+          Deine persönliche Rezeptsammlung – Rezepte aus dem Internet importieren,
+          abfotografieren, teilen und gemeinsam kochen.
+        </p>
+      </div>
+    </div>
+
+
+    <!-- ─── Überblick ─────────────────────────────────────────────── -->
+    <section class="section" id="ueberblick">
+      <div class="section-header">
+        <div class="section-icon">📋</div>
+        <h2>Überblick</h2>
+      </div>
+
+      <p>Die Rezeptsammlung ist eine private Web-App für Familien und Freunde. Alle Rezepte werden zentral gespeichert und sind auf jedem Gerät abrufbar.</p>
+
+      <table>
+        <thead>
+          <tr><th>Funktion</th><th>Beschreibung</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>URL-Import</strong></td><td>Rezepte von Kochwebsites automatisch importieren</td></tr>
+          <tr><td><strong>Foto-Import</strong></td><td>Rezepte aus Büchern oder Zetteln abfotografieren (KI-Erkennung)</td></tr>
+          <tr><td><strong>Manuelle Eingabe</strong></td><td>Eigene Rezepte direkt eintippen</td></tr>
+          <tr><td><strong>Portionsskalierung</strong></td><td>Zutaten automatisch für jede Personenanzahl berechnen</td></tr>
+          <tr><td><strong>Kochmodus</strong></td><td>Großschrift &amp; Display bleibt aktiv</td></tr>
+          <tr><td><strong>Teilen</strong></td><td>Einmalige Kopier-Links oder dauerhafte Freigaben</td></tr>
+          <tr><td><strong>Kontoverbindungen</strong></td><td>Zwei Konten verknüpfen – beide sehen alle Rezepte</td></tr>
+          <tr><td><strong>PWA</strong></td><td>Als App installierbar, funktioniert ohne Browser-Leiste</td></tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>App-URL:</strong> <a href="https://rezepte.familie-ebert.net">https://rezepte.familie-ebert.net</a>
+      </div>
+    </section>
+
+
+    <!-- ─── Anmeldung ─────────────────────────────────────────────── -->
+    <section class="section" id="anmeldung">
+      <div class="section-header">
+        <div class="section-icon">🔑</div>
+        <h2>Anmeldung</h2>
+      </div>
+
+      <p>Die Rezeptsammlung nutzt ausschließlich <strong>Google OAuth</strong> zur Anmeldung – kein separates Passwort erforderlich.</p>
+
+      <ul class="steps">
+        <li>Die App-URL im Browser öffnen: <a href="https://rezepte.familie-ebert.net">rezepte.familie-ebert.net</a></li>
+        <li>Auf <span class="chip">Mit Google anmelden</span> tippen</li>
+        <li>Das gewünschte Google-Konto auswählen</li>
+        <li>Fertig – die Sammlung wird sofort angezeigt</li>
+      </ul>
+
+      <div class="tip-box">
+        💡 <strong>Tipp:</strong> Immer dasselbe Google-Konto verwenden. Beim Wechsel des Kontos erscheint eine leere Sammlung.
+      </div>
+    </section>
+
+
+    <!-- ─── App installieren ──────────────────────────────────────── -->
+    <section class="section" id="installieren">
+      <div class="section-header">
+        <div class="section-icon">📲</div>
+        <h2>App installieren (PWA)</h2>
+      </div>
+
+      <p>Die Rezeptsammlung kann als <strong>Progressive Web App (PWA)</strong> auf dem Home-Bildschirm installiert werden – sie verhält sich dann wie eine native App: kein Browser-Rahmen, schnellerer Start, direkt vom Home-Bildschirm öffenbar.</p>
+
+      <div class="two-col">
+        <div class="col-card">
+          <h4>🤖 Android (Chrome, Edge, Samsung)</h4>
+          <ol>
+            <li>App öffnen und anmelden</li>
+            <li>Zum <strong>Profil</strong> wechseln (Foto oben rechts)</li>
+            <li>Auf <span class="chip">Installieren</span> tippen – oder:</li>
+            <li>Im Browser-Menü <strong>⋮ → App installieren</strong></li>
+          </ol>
+        </div>
+        <div class="col-card">
+          <h4>🍎 iPhone / iPad (Safari)</h4>
+          <ol>
+            <li>Die App in <strong>Safari</strong> öffnen (kein Chrome!)</li>
+            <li>Auf das <strong>Teilen-Symbol</strong> tippen <em>(unten in Safari)</em></li>
+            <li><strong>„Zum Home-Bildschirm"</strong> auswählen</li>
+            <li><strong>„Hinzufügen"</strong> bestätigen</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        💡 Nach einer Deinstallation kann Chrome mehrere Tage warten, bevor der automatische Install-Dialog wieder erscheint. In dieser Zeit: Browser-Menü → <strong>App installieren</strong> oder <strong>Zum Startbildschirm</strong>.
+      </div>
+
+      <h3 style="font-size:.9rem;font-weight:700;color:var(--gray-800);margin:1.25rem 0 .5rem">Teilen-Funktion (nur nach Installation)</h3>
+      <p style="font-size:.875rem;color:var(--gray-500)">
+        Sobald die App installiert ist, erscheint <strong>„Rezeptsammlung"</strong> im System-Teilen-Dialog von Android Chrome.
+        Ein Rezept aus dem Browser teilen → App öffnet sich → Import startet automatisch.
+      </p>
+      <div class="badge-row">
+        <span class="badge badge-green">✅ Android Chrome</span>
+        <span class="badge badge-green">✅ Android Edge / Samsung</span>
+        <span class="badge badge-red">❌ iOS Safari (nicht unterstützt)</span>
+      </div>
+    </section>
+
+
+    <!-- ─── Hinzufügen ────────────────────────────────────────────── -->
+    <section class="section" id="hinzufuegen">
+      <div class="section-header">
+        <div class="section-icon">➕</div>
+        <h2>Rezepte hinzufügen</h2>
+      </div>
+
+      <p>Über <span class="chip">Hinzufügen</span> in der Navigationsleiste stehen drei Tabs zur Verfügung.</p>
+
+      <!-- URL Import -->
+      <div class="feature">
+        <div class="feature-title">🌐 Per URL importieren</div>
+        <p>
+          Rezept-URL einfügen und auf <span class="chip">Importieren</span> tippen. Die App erkennt automatisch:
+          Titel, Beschreibung, Zutaten (mit Menge und Einheit), Zubereitungsschritte, Kochzeiten, Portionsanzahl,
+          Tags, Nährwerte und Bild.
+        </p>
+        <p style="margin-top:.5rem"><strong>Unterstützte Quellen (Auswahl):</strong></p>
+        <div class="badge-row" style="margin-top:.4rem">
+          <span class="badge badge-green">Chefkoch</span>
+          <span class="badge badge-green">lecker.de</span>
+          <span class="badge badge-green">GuteKüche</span>
+          <span class="badge badge-green">BBC Good Food</span>
+          <span class="badge badge-green">Allrecipes</span>
+          <span class="badge badge-green">Essen &amp; Trinken</span>
+          <span class="badge badge-green">Küchengötter</span>
+          <span class="badge badge-gray">Alle Schema.org-Seiten</span>
+        </div>
+        <div class="tip-box" style="margin-top:.75rem">
+          💡 Wenn eine Seite keine strukturierten Daten liefert (kein Schema.org), wird nur der Titel importiert.
+          In diesem Fall lohnt sich der <strong>Foto-Import</strong> als Alternative.
+        </div>
+      </div>
+
+      <!-- Foto Import -->
+      <div class="feature">
+        <div class="feature-title">📷 Rezept abfotografieren</div>
+        <p>
+          Tab <span class="chip">Foto</span> wählen, ein Foto aufnehmen oder aus der Galerie auswählen,
+          dann auf <span class="chip">Rezept erkennen</span> tippen. Die KI (Claude Vision) erkennt
+          Titel, Zutaten und Zubereitungsschritte und füllt das Bearbeitungsformular automatisch aus.
+          Danach prüfen und speichern.
+        </p>
+        <p style="margin-top:.5rem;"><strong>Funktioniert mit:</strong></p>
+        <ul style="font-size:.875rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.3rem">
+          <li>Buchseiten und Zeitschriften</li>
+          <li>Handgeschriebenen Rezeptzetteln</li>
+          <li>Screenshots von Webseiten</li>
+          <li>Abfotografierten Rezeptkarten</li>
+        </ul>
+        <div class="tip-box" style="margin-top:.75rem">
+          💡 Gutes Licht und gerade Aufnahme verbessern die Erkennungsgenauigkeit deutlich.
+          Das Ergebnis immer kurz überprüfen und ggf. korrigieren.
+        </div>
+      </div>
+
+      <!-- Manuell -->
+      <div class="feature">
+        <div class="feature-title">✏️ Manuell eingeben</div>
+        <p>
+          Tab <span class="chip">Manuell eingeben</span> wählen. Alle Felder können direkt eingetippt werden:
+        </p>
+        <ul style="font-size:.875rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.4rem">
+          <li>Titel (Pflichtfeld), Beschreibung, Bild-URL</li>
+          <li>Portionen, Vorbereitungszeit, Kochzeit, Gesamtzeit</li>
+          <li>Diät-Flags (vegetarisch, vegan, glutenfrei, laktosefrei)</li>
+          <li>Tags (kommagetrennt)</li>
+          <li>Zutaten mit Menge, Einheit, optionalem Hinweis</li>
+          <li>Zubereitungsschritte</li>
+        </ul>
+      </div>
+
+      <!-- Teilen-Funktion -->
+      <div class="feature">
+        <div class="feature-title">🔄 Direkt aus dem Browser importieren</div>
+        <p>
+          Drei Methoden, ohne die App manuell zu öffnen:
+        </p>
+        <table style="margin-top:.75rem">
+          <thead>
+            <tr><th>Methode</th><th>Plattform</th><th>Einrichtung</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>PWA-Teilen</strong></td>
+              <td>Android (installierte App)</td>
+              <td>Kein Setup – Teilen-Menü → Rezeptsammlung</td>
+            </tr>
+            <tr>
+              <td><strong>iOS-Kurzbefehl</strong></td>
+              <td>iPhone / iPad</td>
+              <td>Einmalig in der Kurzbefehle-App einrichten (<a href="#kurzbefehle">→ Details</a>)</td>
+            </tr>
+            <tr>
+              <td><strong>HTTP Shortcuts</strong></td>
+              <td>Android (ohne App-Installation)</td>
+              <td>App aus dem Play Store + Einrichtung (<a href="#kurzbefehle">→ Details</a>)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+
+    <!-- ─── Suchen & Filtern ───────────────────────────────────────── -->
+    <section class="section" id="suchen">
+      <div class="section-header">
+        <div class="section-icon">🔍</div>
+        <h2>Suchen und Filtern</h2>
+      </div>
+
+      <p>Die Startseite zeigt alle Rezepte – eigene und die verknüpfter Konten – in einer durchsuchbaren Übersicht.</p>
+
+      <div class="feature">
+        <div class="feature-title">Volltextsuche</div>
+        <p>Das Suchfeld durchforstet <strong>Titel, Beschreibung, Zutaten und Tags</strong> gleichzeitig. Die Ergebnisse aktualisieren sich bei jeder Eingabe sofort.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Filter</div>
+        <p>Filteroptionen lassen sich beliebig kombinieren:</p>
+        <ul style="font-size:.875rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.4rem">
+          <li><strong>Ernährungsweise:</strong> Vegetarisch, Vegan, Glutenfrei</li>
+          <li><strong>Maximale Kochzeit:</strong> Rezepte die innerhalb X Minuten fertig sind</li>
+          <li><strong>Tags:</strong> Nach beliebigen Tags filtern (z.&nbsp;B. „Pasta", „Schnell", „Backen")</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Rezepte anderer Konten</div>
+        <p>
+          Beim Import aus einem verknüpften Konto wird der Besitzername auf der Rezeptkarte angezeigt.
+          Die Volltextsuche und alle Filter gelten für alle sichtbaren Rezepte gleichzeitig.
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ─── Rezeptansicht ─────────────────────────────────────────── -->
+    <section class="section" id="ansicht">
+      <div class="section-header">
+        <div class="section-icon">📖</div>
+        <h2>Rezeptansicht</h2>
+      </div>
+
+      <p>Ein Tipp auf eine Rezeptkarte öffnet die Detailansicht mit allen Informationen.</p>
+
+      <div class="feature">
+        <div class="feature-title">⚖️ Portionsskalierung</div>
+        <p>
+          Der Schieberegler über den Zutaten passt alle Mengenangaben stufenlos an die gewünschte
+          Personenzahl an. Die Berechnung erfolgt anteilig – ganze Zutaten ohne Mengenangabe
+          (z.&nbsp;B. „Salz") bleiben unverändert.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">👨‍🍳 Kochmodus</div>
+        <p>
+          Der <span class="chip">Kochmodus</span>-Button (Auge-Icon) vergrößert die Schrift deutlich
+          für eine bessere Lesbarkeit auf Distanz. Zusätzlich bleibt der Bildschirm aktiv –
+          das Display schaltet sich nicht automatisch ab (sofern in den Einstellungen aktiviert).
+        </p>
+        <div class="tip-box" style="margin-top:.75rem">
+          💡 Den Kochmodus bei Tablet-Montage an der Küchenwand nutzen – kein Entsperren mehr nötig.
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">🔀 Original / Angepasste Zutaten</div>
+        <p>
+          Wenn für ein Rezept eigene Mengen oder Zutaten hinterlegt wurden (im Bearbeitungsformular),
+          erscheint ein Umschalter <span class="chip">Original</span> / <span class="chip">Angepasst</span>
+          über der Zutatenliste. So lassen sich z.&nbsp;B. abweichende Mengen für die Lieblingsvariante speichern.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">🥗 Nährwerte</div>
+        <p>
+          Sofern die Originalquelle Nährwertangaben enthält, werden sie pro Portion angezeigt:
+          Kalorien, Protein, Fett und Kohlenhydrate.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">🔗 Originalquelle</div>
+        <p>
+          Bei importierten Rezepten ist ein Link zur Originalseite verfügbar
+          (<em>„Original-Rezept"</em>).
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ─── Bearbeiten & Löschen ──────────────────────────────────── -->
+    <section class="section" id="bearbeiten">
+      <div class="section-header">
+        <div class="section-icon">✏️</div>
+        <h2>Rezept bearbeiten &amp; löschen</h2>
+      </div>
+
+      <p>Der <span class="chip">Bearbeiten</span>-Button ist in der Rezeptansicht sichtbar (nur für berechtigte Nutzer).</p>
+
+      <div class="feature">
+        <div class="feature-title">Stammdaten bearbeiten</div>
+        <p>Alle Grunddaten können geändert werden: Titel, Beschreibung, Bild-URL, Kochzeiten,
+        Portionsanzahl und Diät-Flags (vegetarisch, vegan, glutenfrei, laktosefrei).</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Tags</div>
+        <p>Tags werden als kommagetrennte Liste eingegeben. Bereits in der Sammlung verwendete Tags
+        werden als Vorschläge angeboten.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Eigene Zutaten hinterlegen</div>
+        <p>
+          Im Abschnitt „Eigene Zutaten" können alternative Mengen oder Zutaten eingetragen werden –
+          z.&nbsp;B. für eine bevorzugte Variante oder abweichende Mengen. In der Rezeptansicht erscheint
+          dann der Umschalter <span class="chip">Original</span> / <span class="chip">Angepasst</span>.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">🗑️ Rezept löschen</div>
+        <p>
+          Das Papierkorb-Symbol in der Rezeptansicht entfernt das Rezept nach einer Bestätigung
+          dauerhaft. <strong>Achtung:</strong> Geteilte Rezepte werden für alle Beteiligten gelöscht.
+        </p>
+      </div>
+
+      <div class="warning-box">
+        ⚠️ Bearbeitungsrecht haben nur der Besitzer des Rezepts sowie Nutzer, denen explizit
+        Bearbeitungsrecht über die Freigabe-Funktion erteilt wurde.
+      </div>
+    </section>
+
+
+    <!-- ─── Teilen ────────────────────────────────────────────────── -->
+    <section class="section" id="teilen">
+      <div class="section-header">
+        <div class="section-icon">🔗</div>
+        <h2>Rezepte teilen</h2>
+      </div>
+
+      <p>
+        Über das Teilen-Symbol (🔗) in der Rezeptansicht gibt es zwei Möglichkeiten.
+        Das Menü ist nur für den Besitzer des Rezepts sichtbar.
+      </p>
+
+      <div class="feature">
+        <div class="feature-title">📋 Kopier-Link (einmaliger Link)</div>
+        <p>
+          Erstellt einen Link, den beliebige Personen öffnen können – auch ohne Anmeldung.
+          Der Empfänger sieht eine Vorschau des Rezepts und kann es mit einem Tipp in die
+          <em>eigene</em> Sammlung <strong>kopieren</strong>. Danach sind die beiden Rezepte
+          völlig unabhängig voneinander – Änderungen werden nicht synchronisiert.
+        </p>
+        <div class="tip-box" style="margin-top:.5rem">
+          💡 Ideal zum einmaligen Weitergeben an Freunde oder die Familie.
+          Der Link ist unbegrenzt gültig.
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">👤 Direkte Freigabe (dauerhaft)</div>
+        <p>
+          Teilt das Rezept dauerhaft mit einem anderen registrierten Nutzer.
+          Das Rezept bleibt <strong>ein einziges</strong> – beide sehen immer die aktuelle Version.
+        </p>
+        <p style="margin-top:.5rem"><strong>Berechtigungen:</strong></p>
+        <ul style="font-size:.875rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.35rem">
+          <li><strong>Nur ansehen:</strong> Der andere Nutzer kann das Rezept lesen, aber nicht ändern.</li>
+          <li><strong>Ansehen &amp; bearbeiten:</strong> Änderungen beider Nutzer sind sofort für alle sichtbar.</li>
+        </ul>
+        <p style="margin-top:.5rem;font-size:.875rem;color:var(--gray-500)">
+          Bestehende Freigaben werden im selben Dialog angezeigt und können dort entfernt werden.
+          Die E-Mail-Adresse des Empfängers muss registriert sein.
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ─── Konten verknüpfen ─────────────────────────────────────── -->
+    <section class="section" id="konten">
+      <div class="section-header">
+        <div class="section-icon">👥</div>
+        <h2>Konten verknüpfen</h2>
+      </div>
+
+      <p>
+        Unter <span class="chip">Profil</span> (Tipp auf das Profilfoto oben rechts) befindet sich
+        der Bereich <strong>„Verknüpfte Konten"</strong>.
+      </p>
+
+      <div class="feature">
+        <div class="feature-title">Was bewirkt eine Verknüpfung?</div>
+        <p>
+          Nach der Verknüpfung zweier Konten sieht jeder Nutzer automatisch <strong>alle Rezepte des anderen</strong>
+          in seiner Sammlung – als wären es eigene. Rezepte des verknüpften Kontos sind in der Übersicht
+          mit dem Namen des Besitzers gekennzeichnet. Die Verknüpfung gilt in beide Richtungen.
+        </p>
+        <div class="warning-box" style="margin-top:.75rem">
+          ⚠️ Über verknüpfte Konten sichtbare Rezepte sind grundsätzlich <strong>nur lesbar</strong>.
+          Bearbeitungsrecht erteilt man über die direkte Rezept-Freigabe (siehe oben).
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Verknüpfung anfragen – Nutzer bereits registriert</div>
+        <ul class="steps" style="margin-top:.5rem">
+          <li>Im Profil die E-Mail-Adresse des anderen Nutzers eingeben</li>
+          <li>Auf <span class="chip">Anfragen</span> tippen</li>
+          <li>Der andere Nutzer sieht im Profil unter <strong>„Offene Anfragen"</strong> eine Benachrichtigung
+              (roter Zähler auf dem Profilfoto)</li>
+          <li>Nach dem Annehmen ist die Verknüpfung aktiv</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Verknüpfung anfragen – Nutzer noch nicht registriert</div>
+        <p>
+          Wenn die eingegebene E-Mail-Adresse noch kein Konto hat, wird automatisch eine
+          <strong>Einladungs-E-Mail</strong> verschickt (gültig 48 Stunden).
+        </p>
+        <ul class="steps" style="margin-top:.5rem">
+          <li>E-Mail-Adresse eingeben und auf <span class="chip">Anfragen</span> tippen</li>
+          <li>Der Eingeladene erhält eine E-Mail mit einem persönlichen Link</li>
+          <li>Link öffnen → Einladungsseite zeigt wer einlädt</li>
+          <li>Auf <span class="chip">Mit Google anmelden</span> tippen (oder, falls bereits angemeldet, <span class="chip">Einladung annehmen</span>)</li>
+          <li>Die Verknüpfung wird sofort aktiviert</li>
+        </ul>
+        <div class="tip-box" style="margin-top:.75rem">
+          💡 Gesendete Einladungen werden im Profil unter <strong>„Gesendete Einladungen"</strong> angezeigt
+          und können dort zurückgezogen werden.
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Offene Anfragen annehmen oder ablehnen</div>
+        <p>
+          Eingehende Anfragen erscheinen im Profil unter <strong>„Offene Anfragen"</strong> mit
+          <span class="chip">Annehmen</span> und <span class="chip">Ablehnen</span>-Buttons.
+          Ein roter Zähler auf dem Profilfoto signalisiert wartende Anfragen.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Verknüpfung aufheben</div>
+        <p>
+          Im Profil das Papierkorb-Symbol neben der Verknüpfung antippen. Danach sind die Rezepte
+          des anderen Nutzers sofort ausgeblendet.
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ─── Profil ────────────────────────────────────────────────── -->
+    <section class="section" id="profil">
+      <div class="section-header">
+        <div class="section-icon">👤</div>
+        <h2>Profil</h2>
+      </div>
+
+      <p>
+        Die Profilseite öffnet sich per Tipp auf das Profilfoto oben rechts in der Navigationsleiste.
+      </p>
+
+      <div class="feature">
+        <div class="feature-title">Nutzerkarte</div>
+        <p>Zeigt Name, E-Mail-Adresse und Profilfoto des aktuell angemeldeten Google-Kontos.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">App installieren</div>
+        <p>Der Installationsbereich zeigt je nach Gerät und Status:</p>
+        <ul style="font-size:.875rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.4rem">
+          <li><strong>Installieren-Button</strong> (Android Chrome, wenn verfügbar)</li>
+          <li><strong>Anleitung-Button</strong> (iOS Safari oder wenn Chrome-Prompt noch nicht aktiv)</li>
+          <li><strong>„App ist installiert"</strong> (wenn die App bereits läuft)</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Abmelden</div>
+        <p>
+          Der <span class="chip">Abmelden</span>-Button beendet die Sitzung. Beim nächsten Öffnen
+          der App ist eine erneute Google-Anmeldung erforderlich.
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ─── Einstellungen ─────────────────────────────────────────── -->
+    <section class="section" id="einstellungen">
+      <div class="section-header">
+        <div class="section-icon">⚙️</div>
+        <h2>Einstellungen</h2>
+      </div>
+
+      <p>
+        Ganz unten auf der Profilseite befindet sich der Einstellungsbereich.
+        Die Einstellungen werden lokal auf dem Gerät gespeichert.
+      </p>
+
+      <div class="feature">
+        <div class="feature-title">🖥️ Display beim Kochen nicht ausschalten</div>
+        <p>
+          <strong>Standard: aktiviert.</strong> Wenn der Kochmodus aktiv ist, verhindert diese
+          Einstellung, dass der Bildschirm nach kurzer Inaktivität automatisch sperrt.
+          Praktisch beim Kochen nach Rezept, ohne das Gerät ständig zu entsperren.
+        </p>
+        <p style="margin-top:.5rem;font-size:.8rem;color:var(--gray-400)">
+          Technisch: Screen Wake Lock API (Chrome 84+, Safari 16.4+, Firefox 126+).
+          Ältere Browser ignorieren diese Einstellung stillschweigend.
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ─── Kurzbefehle ───────────────────────────────────────────── -->
+    <section class="section" id="kurzbefehle">
+      <div class="section-header">
+        <div class="section-icon">⚡</div>
+        <h2>Smartphone-Kurzbefehle</h2>
+      </div>
+
+      <p>
+        Mit einem eingerichteten Kurzbefehl lässt sich jedes Rezept direkt aus dem Browser-Teilen-Menü
+        in die Sammlung importieren – ohne die App zu öffnen.
+        Diese Methode funktioniert auch ohne installierte PWA und auf iOS.
+      </p>
+
+      <div class="info-box">
+        <strong>Voraussetzung:</strong> Ein persönlicher API-Schlüssel. Dieser kann bei
+        <a href="mailto:stephan@familie-ebert.net">stephan@familie-ebert.net</a> angefragt werden.
+      </div>
+
+      <h3 style="font-size:.9rem;font-weight:700;color:var(--gray-800);margin:1.25rem 0 .75rem">
+        🍎 iPhone &amp; iPad – iOS-Kurzbefehle
+      </h3>
+
+      <ul class="steps">
+        <li>Die App <strong>Kurzbefehle</strong> öffnen → oben rechts auf <strong>+</strong> tippen → neuer Kurzbefehl</li>
+        <li>
+          Aktion 1: <strong>„Eingabe aus Teilen-Menü empfangen"</strong> hinzufügen
+          (Typ auf <em>URLs</em> setzen)
+        </li>
+        <li>
+          Aktion 2: <strong>„Web-Anfrage"</strong> hinzufügen:<br>
+          <ul style="font-size:.82rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.4rem">
+            <li>Methode: <code>POST</code></li>
+            <li>URL: <code>https://rezepte.familie-ebert.net/api/import</code></li>
+            <li>Header: <code>x-api-key</code> → dein API-Schlüssel</li>
+            <li>Header: <code>Content-Type</code> → <code>application/json</code></li>
+            <li>Body: <code>{"url":"[Eingabe aus Schritt 1]"}</code></li>
+          </ul>
+        </li>
+        <li><em>(Optional)</em> Aktion 3: <strong>„Mitteilung anzeigen"</strong> → <em>„Rezept gespeichert ✓"</em></li>
+        <li>Kurzbefehl benennen (z.&nbsp;B. „Rezept speichern") und im Teilen-Menü aktivieren</li>
+      </ul>
+
+      <div class="tip-box">
+        💡 Den Kurzbefehl testen: Rezeptseite im Safari öffnen → Teilen → Kurzbefehl antippen → nach wenigen Sekunden erscheint das Rezept in der App.
+      </div>
+
+      <hr />
+
+      <h3 style="font-size:.9rem;font-weight:700;color:var(--gray-800);margin:1.25rem 0 .75rem">
+        🤖 Android – HTTP Shortcuts
+      </h3>
+
+      <ul class="steps">
+        <li>App <strong>„HTTP Shortcuts"</strong> (kostenlos von Waboodoo) aus dem Play Store installieren</li>
+        <li>
+          Neuen Shortcut anlegen:
+          <ul style="font-size:.82rem;color:var(--gray-500);padding-left:1.2rem;margin-top:.4rem">
+            <li>Methode: <code>POST</code></li>
+            <li>URL: <code>https://rezepte.familie-ebert.net/api/import</code></li>
+          </ul>
+        </li>
+        <li>
+          Unter <strong>Header</strong> hinzufügen:
+          <pre><code>Content-Type: application/json
+x-api-key: &lt;dein-schlüssel&gt;</code></pre>
+        </li>
+        <li>
+          Unter <strong>Body</strong> (Custom Text):
+          <pre><code>{"url":"{share_text}"}</code></pre>
+        </li>
+        <li>Shortcut speichern und über <strong>Teilen → HTTP Shortcuts → Rezept speichern</strong> testen</li>
+      </ul>
+    </section>
+
+
+    <!-- ─── API ───────────────────────────────────────────────────── -->
+    <section class="section" id="api">
+      <div class="section-header">
+        <div class="section-icon">🔌</div>
+        <h2>API-Zugang</h2>
+      </div>
+
+      <p>
+        Für den Import über Kurzbefehle steht ein einfacher API-Endpunkt bereit.
+        Der Zugang ist mit einem persönlichen API-Schlüssel gesichert.
+      </p>
+
+      <div class="feature">
+        <div class="feature-title">Rezept importieren</div>
+        <pre><code>POST https://rezepte.familie-ebert.net/api/import
+
+Headers:
+  x-api-key: &lt;dein-schlüssel&gt;
+  Content-Type: application/json
+
+Body:
+  { "url": "https://www.chefkoch.de/..." }
+
+Antwort (201):
+  { "id": 42, "message": "Rezept erfolgreich importiert" }
+
+Antwort bei Duplikat (409):
+  { "error": "Rezept bereits vorhanden", "existingId": 42 }</code></pre>
+      </div>
+
+      <div class="info-box">
+        <strong>API-Schlüssel anfragen:</strong> <a href="mailto:stephan@familie-ebert.net">stephan@familie-ebert.net</a>
+      </div>
+    </section>
+
+
+    <!-- Footer -->
+    <hr />
+    <p style="font-size:.8rem;color:var(--gray-400);text-align:center;padding-bottom:2rem">
+      Rezeptsammlung · Stand Juni 2026 ·
+      <a href="https://rezepte.familie-ebert.net">zur App</a>
+    </p>
+
+  </main>
+</div>
+
+<script>
+  // Aktiven Nav-Link hervorheben beim Scrollen
+  const links = document.querySelectorAll('.nav-link');
+  const sections = document.querySelectorAll('.section[id]');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

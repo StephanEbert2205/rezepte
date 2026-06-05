@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Clock, Users, ChefHat, ExternalLink, Edit, Trash2, Eye, Leaf, Flame, Share2
+  Clock, Users, ChefHat, ExternalLink, Edit, Trash2, Eye, Leaf, Flame, Share2, Flag
 } from 'lucide-react';
 import { recipeApi } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +10,10 @@ import PortionSlider from '../components/PortionSlider';
 import IngredientList from '../components/IngredientList';
 import InstructionList from '../components/InstructionList';
 import ShareModal from '../components/ShareModal';
+import ReportModal from '../components/ReportModal';
 import { formatDuration, formatDate } from '../utils/format';
+import { useWakeLock } from '../hooks/useWakeLock';
+import { loadSettings } from '../utils/settings';
 
 export default function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,8 +25,13 @@ export default function RecipeDetailPage() {
   const [servings, setServings] = useState<number | null>(null);
   const [cookMode, setCookMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Display im Kochmodus nicht ausschalten (Einstellung aus localStorage)
+  const [keepScreenAwake] = useState(() => loadSettings().keepScreenAwake);
+  useWakeLock(cookMode && keepScreenAwake);
   const [showCustom, setShowCustom] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
+  const [showShareModal, setShowShareModal]   = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const { data: recipe, isLoading, isError } = useQuery({
     queryKey: ['recipe', recipeId],
@@ -104,6 +112,15 @@ export default function RecipeDetailPage() {
               <span className="hidden sm:inline">Teilen</span>
             </button>
           )}
+
+          {/* Problem melden – für alle sichtbar */}
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="btn-secondary text-sm text-gray-400 hover:text-red-500"
+            title="Problem melden"
+          >
+            <Flag className="w-4 h-4" />
+          </button>
 
           {isOwner && (
             !confirmDelete ? (
@@ -335,6 +352,15 @@ export default function RecipeDetailPage() {
           recipeId={recipe.id}
           recipeTitle={recipe.title}
           onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <ReportModal
+          recipeId={recipe.id}
+          recipeTitle={recipe.title}
+          onClose={() => setShowReportModal(false)}
         />
       )}
     </div>

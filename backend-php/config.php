@@ -107,4 +107,6 @@ return [
     'isProduction'        => $isHttps,
     // Anthropic-API-Schlüssel für Foto-Analyse (optional)
     'anthropicApiKey'     => $env['ANTHROPIC_API_KEY'] ?? '',
+    // Absender-Adresse für Einladungs-E-Mails
+    'mailFrom'            => $env['MAIL_FROM'] ?? 'noreply@familie-ebert.net',
 ];

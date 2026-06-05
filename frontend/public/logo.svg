@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Oranger Hintergrund mit abgerundeten Ecken -->
+  <rect width="512" height="512" rx="108" fill="#ee7a1b"/>
+  <!-- Weißes "R" zentriert -->
+  <text
+    x="256"
+    y="385"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="310"
+    font-weight="700"
+    fill="white"
+    text-anchor="middle"
+  >R</text>
+</svg>

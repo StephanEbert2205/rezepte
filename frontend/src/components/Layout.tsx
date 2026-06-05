@@ -1,5 +1,5 @@
 import { Outlet, NavLink, Link } from 'react-router-dom';
-import { BookOpen, Plus, Search, HelpCircle } from 'lucide-react';
+import { BookOpen, Plus, Search, HelpCircle, Shield, Megaphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { accountApi } from '../api/client';
@@ -69,6 +69,38 @@ export default function Layout() {
               <span className="hidden sm:inline">Anleitung</span>
             </NavLink>
 
+            {/* Changelog-Link mit Ungelesen-Indikator */}
+            <NavLink
+              to="/changelog"
+              title="Was ist neu?"
+              className={({ isActive }) =>
+                `relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`
+              }
+            >
+              <Megaphone className="w-4 h-4" />
+              <span className="hidden sm:inline">Neuigkeiten</span>
+              {user?.hasUnreadChangelog && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white" />
+              )}
+            </NavLink>
+
+            {/* Admin-Link – nur für Admins sichtbar */}
+            {user?.isAdmin && (
+              <NavLink
+                to="/admin"
+                title="Admin"
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive ? 'bg-red-50 text-red-700' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                  }`
+                }
+              >
+                <Shield className="w-4 h-4" />
+              </NavLink>
+            )}
+
             {/* Profil-Avatar → Profilseite */}
             <Link
               to="/profil"
@@ -106,6 +138,10 @@ export default function Layout() {
         {' · '}
         <NavLink to="/anleitung" className="underline hover:text-gray-600 transition-colors">
           Anleitung
+        </NavLink>
+        {' · '}
+        <NavLink to="/changelog" className="underline hover:text-gray-600 transition-colors">
+          Was ist neu?
         </NavLink>
       </footer>
     </div>

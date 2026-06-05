@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
@@ -9,6 +9,9 @@ import AnleitungPage from './pages/AnleitungPage';
 import LoginPage from './pages/LoginPage';
 import SharedRecipePage from './pages/SharedRecipePage';
 import ProfilePage from './pages/ProfilePage';
+import InvitationPage from './pages/InvitationPage';
+import AdminPage from './pages/AdminPage';
+import ChangelogPage from './pages/ChangelogPage';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -25,17 +28,21 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        {/* Öffentlich: Rezept-Vorschau per Token */}
-        <Route path="/teilen/:token" element={<SharedRecipePage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Öffentlich: Rezept-Vorschau und Einladungs-Landingpage */}
+        <Route path="/teilen/:token"    element={<SharedRecipePage />} />
+        <Route path="/einladung/:token" element={<InvitationPage />} />
+        {/* Bewahrt den Ziel-Pfad (inkl. Query-Params) damit Share-Target-URLs
+            nach dem Google-Login erhalten bleiben. */}
+        <Route path="*" element={<RedirectToLogin />} />
       </Routes>
     );
   }
 
   return (
     <Routes>
-      {/* Geteiltes Rezept – auch für eingeloggte Nutzer zugänglich */}
-      <Route path="/teilen/:token" element={<SharedRecipePage />} />
+      {/* Geteiltes Rezept und Einladung – auch für eingeloggte Nutzer zugänglich */}
+      <Route path="/teilen/:token"    element={<SharedRecipePage />} />
+      <Route path="/einladung/:token" element={<InvitationPage />} />
 
       <Route element={<Layout />}>
         <Route path="/" element={<HomePage />} />
@@ -46,10 +53,23 @@ function AppRoutes() {
         <Route path="/konten" element={<Navigate to="/profil" replace />} />
         <Route path="/rezepte/:id" element={<RecipeDetailPage />} />
         <Route path="/rezepte/:id/bearbeiten" element={<EditRecipePage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/changelog" element={<ChangelogPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
+}
+
+/** Leitet unangemeldete Nutzer zum Login weiter und bewahrt dabei den
+ *  aktuellen Pfad inkl. Query-String (wichtig für den Share-Target-Flow). */
+function RedirectToLogin() {
+  const location = useLocation();
+  const returnTo = location.pathname + location.search;
+  const target   = returnTo !== '/' && returnTo !== ''
+    ? `/login?redirect=${encodeURIComponent(returnTo)}`
+    : '/login';
+  return <Navigate to={target} replace />;
 }
 
 export default function App() {

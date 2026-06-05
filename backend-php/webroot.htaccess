@@ -51,9 +51,19 @@ AddDefaultCharset UTF-8
     ExpiresByType image/webp "access plus 1 month"
 </IfModule>
 
-# index.html nie cachen (immer aktuelle App-Version)
+# ── MIME-Typen ─────────────────────────────────────────────────────────────
+<IfModule mod_mime.c>
+    AddType application/manifest+json  .webmanifest
+</IfModule>
+
+# ── Cache-Control ────────────────────────────────────────────────────────────
 <IfModule mod_headers.c>
-    <FilesMatch "index\.html$">
+    # index.html und Service Worker nie cachen – Browser muss immer prüfen
+    <FilesMatch "(index\.html|sw\.js|registerSW\.js)$">
         Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+    # Manifest darf kurz gecacht werden, aber nicht zu lang
+    <FilesMatch "manifest\.webmanifest$">
+        Header set Cache-Control "max-age=86400"
     </FilesMatch>
 </IfModule>

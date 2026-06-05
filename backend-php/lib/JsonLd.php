@@ -88,7 +88,12 @@ final class JsonLd
 
     private static function extractFromSchemaOrg(array $data, string $url, string $sourceDomain): array
     {
-        $title       = self::str($data['name'] ?? null) ?? 'Unbekanntes Rezept';
+        $nameVal     = self::str($data['name'] ?? null) ?? 'Unbekanntes Rezept';
+        $headlineVal = self::str($data['headline'] ?? null);
+        // 'headline' bevorzugen wenn kürzer als 'name' — entfernt SEO-Suffixe (z.B. lecker.de)
+        $title       = ($headlineVal !== null && mb_strlen($headlineVal) < mb_strlen($nameVal))
+            ? $headlineVal
+            : $nameVal;
         $description = self::str($data['description'] ?? null);
         $author      = self::extractAuthor($data['author'] ?? null);
         $imageUrl    = self::extractImage($data['image'] ?? null);
@@ -138,7 +143,7 @@ final class JsonLd
 
         $nutrition = self::extractNutrition($data['nutrition'] ?? null);
 
-        return [
+        return self::postProcess([
             'title'        => $title,
             'description'  => $description,
             'sourceUrl'    => $url,
@@ -153,7 +158,27 @@ final class JsonLd
             'instructions' => $instructions,
             'tags'         => $tags,
             'nutrition'    => $nutrition,
-        ];
+        ], $sourceDomain);
+    }
+
+    /**
+     * Site-spezifische Nachbearbeitung des geparsten Rezepts.
+     * Behebt bekannte Eigenheiten bestimmter Quellen.
+     */
+    private static function postProcess(array $result, string $sourceDomain): array
+    {
+        if (str_contains($sourceDomain, 'lecker.de')) {
+            // Markenname "Lecker" als Autor ist nicht sinnvoll
+            if (mb_strtolower(trim((string) ($result['author'] ?? ''))) === 'lecker') {
+                $result['author'] = null;
+            }
+            // Generisches SEO-Keyword "Rezepte" aus Tags entfernen
+            $result['tags'] = array_values(array_filter(
+                $result['tags'],
+                static fn(string $t) => mb_strtolower(trim($t)) !== 'rezepte'
+            ));
+        }
+        return $result;
     }
 
     private static function str($val): ?string

@@ -14,6 +14,10 @@
  * Aufruf:  node deploy.js            (deployt)
  *          node deploy.js --cleanup  (deployt + entfernt alte Node-Artefakte)
  *          node deploy.js --migrate  (deployt + führt DB-Migration aus)
+ *          node deploy.js --migrate-invitations  (deployt + legt account_invitations-Tabelle an)
+ *          node deploy.js --migrate-changelog         (deployt + legt changelog_entries-Tabelle an)
+ *          node deploy.js --migrate-changelog-read    (deployt + fügt lastChangelogReadAt-Spalte hinzu)
+ *          node deploy.js --migrate-changelog-commits (deployt + legt changelog_commits-Tabelle an)
  *          node deploy.js --migrate --cleanup  (alles auf einmal)
  */
 
@@ -36,13 +40,20 @@ if (fs.existsSync(ENV_FILE)) {
   }
 }
 
-const SSH_HOST = process.env.DEPLOY_SSH_HOST || 'w021a129.kasserver.com';
-const SSH_USER = process.env.DEPLOY_SSH_USER || 'ssh-w021a129';
-const SSH_KEY  = process.env.DEPLOY_SSH_KEY  || path.join(process.env.HOME || process.env.USERPROFILE, '.ssh', 'id_ed25519');
+const SSH_HOST       = process.env.DEPLOY_SSH_HOST       || 'w021a129.kasserver.com';
+const SSH_USER       = process.env.DEPLOY_SSH_USER       || 'ssh-w021a129';
+const SSH_KEY        = process.env.DEPLOY_SSH_KEY        || path.join(process.env.HOME || process.env.USERPROFILE, '.ssh', 'id_ed25519');
+const SSH_PASSPHRASE = process.env.DEPLOY_SSH_PASSPHRASE || '';
 const WEB_ROOT = process.env.DEPLOY_WEBROOT  || '/www/htdocs/w021a129/rezepte.familie-ebert.net';
 const SITE     = 'https://rezepte.familie-ebert.net';
-const CLEANUP  = process.argv.includes('--cleanup');
-const MIGRATE  = process.argv.includes('--migrate');
+const CLEANUP              = process.argv.includes('--cleanup');
+const MIGRATE              = process.argv.includes('--migrate');
+const MIGRATE_INVITATIONS  = process.argv.includes('--migrate-invitations');
+const MIGRATE_ADMIN        = process.argv.includes('--migrate-admin');
+const MIGRATE_REPORTS      = process.argv.includes('--migrate-reports');
+const MIGRATE_CHANGELOG         = process.argv.includes('--migrate-changelog');
+const MIGRATE_CHANGELOG_READ    = process.argv.includes('--migrate-changelog-read');
+const MIGRATE_CHANGELOG_COMMITS = process.argv.includes('--migrate-changelog-commits');
 
 const LOCAL    = __dirname;
 const PHP_SRC  = path.join(LOCAL, 'backend-php');
@@ -102,9 +113,16 @@ function connect() {
   return new Promise((res, rej) => {
     conn.on('ready', () => res(conn)).on('error', rej);
     const opts = { host: SSH_HOST, port: 22, username: SSH_USER, readyTimeout: 20000 };
-    if (fs.existsSync(SSH_KEY)) { opts.privateKey = fs.readFileSync(SSH_KEY); ok(`SSH-Key: ${SSH_KEY}`); }
-    else if (process.env.DEPLOY_SSH_PASSWORD) { opts.password = process.env.DEPLOY_SSH_PASSWORD; ok('SSH-Passwort aus Umgebung'); }
-    else return rej(new Error(`SSH-Key nicht gefunden: ${SSH_KEY}`));
+    if (fs.existsSync(SSH_KEY)) {
+      opts.privateKey = fs.readFileSync(SSH_KEY);
+      if (SSH_PASSPHRASE) opts.passphrase = SSH_PASSPHRASE;
+      ok(`SSH-Key: ${SSH_KEY}`);
+    } else if (process.env.DEPLOY_SSH_PASSWORD) {
+      opts.password = process.env.DEPLOY_SSH_PASSWORD;
+      ok('SSH-Passwort aus Umgebung');
+    } else {
+      return rej(new Error(`SSH-Key nicht gefunden: ${SSH_KEY}`));
+    }
     conn.connect(opts);
   });
 }
@@ -189,6 +207,120 @@ async function main() {
       ok('DB-Migration abgeschlossen');
     }
 
+    // 7b. Optionale DB-Migration: account_invitations
+    if (MIGRATE_INVITATIONS) {
+      log('DB-Migration ausführen (migrate-invitations.sql)...');
+      const envRaw2 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch2 = envRaw2.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch2) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl2  = new URL(dbUrlMatch2[1]);
+      const dbUser2 = decodeURIComponent(dbUrl2.username);
+      const dbPass2 = decodeURIComponent(dbUrl2.password);
+      const dbHost2 = dbUrl2.hostname;
+      const dbPort2 = dbUrl2.port || '3306';
+      const dbName2 = dbUrl2.pathname.replace(/^\//, '');
+      const migSql2 = path.join(LOCAL, 'setup', 'migrate-invitations.sql');
+      await put(s, migSql2, `${WEB_ROOT}/.migrate-invitations.sql`);
+      await run(conn, `mysql -h ${dbHost2} -P ${dbPort2} -u '${dbUser2}' -p'${dbPass2}' ${dbName2} < ${WEB_ROOT}/.migrate-invitations.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-invitations.sql`, { silent: true });
+      ok('account_invitations-Tabelle angelegt');
+    }
+
+    // 7c. Optionale DB-Migration: isAdmin-Flag
+    if (MIGRATE_ADMIN) {
+      log('DB-Migration ausführen (migrate-admin.sql)...');
+      const envRaw3 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch3 = envRaw3.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch3) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl3  = new URL(dbUrlMatch3[1]);
+      const dbUser3 = decodeURIComponent(dbUrl3.username);
+      const dbPass3 = decodeURIComponent(dbUrl3.password);
+      const dbHost3 = dbUrl3.hostname;
+      const dbPort3 = dbUrl3.port || '3306';
+      const dbName3 = dbUrl3.pathname.replace(/^\//, '');
+      const migSql3 = path.join(LOCAL, 'setup', 'migrate-admin.sql');
+      await put(s, migSql3, `${WEB_ROOT}/.migrate-admin.sql`);
+      await run(conn, `mysql -h ${dbHost3} -P ${dbPort3} -u '${dbUser3}' -p'${dbPass3}' ${dbName3} < ${WEB_ROOT}/.migrate-admin.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-admin.sql`, { silent: true });
+      ok('isAdmin-Spalte angelegt');
+    }
+
+    // 7e. Optionale DB-Migration: changelog_entries
+    if (MIGRATE_CHANGELOG) {
+      log('DB-Migration ausführen (migrate-changelog.sql)...');
+      const envRaw5 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch5 = envRaw5.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch5) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl5  = new URL(dbUrlMatch5[1]);
+      const dbUser5 = decodeURIComponent(dbUrl5.username);
+      const dbPass5 = decodeURIComponent(dbUrl5.password);
+      const dbHost5 = dbUrl5.hostname;
+      const dbPort5 = dbUrl5.port || '3306';
+      const dbName5 = dbUrl5.pathname.replace(/^\//, '');
+      const migSql5 = path.join(LOCAL, 'setup', 'migrate-changelog.sql');
+      await put(s, migSql5, `${WEB_ROOT}/.migrate-changelog.sql`);
+      await run(conn, `mysql -h ${dbHost5} -P ${dbPort5} -u '${dbUser5}' -p'${dbPass5}' ${dbName5} < ${WEB_ROOT}/.migrate-changelog.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-changelog.sql`, { silent: true });
+      ok('changelog_entries-Tabelle angelegt');
+    }
+
+    // 7g. Optionale DB-Migration: changelog_commits
+    if (MIGRATE_CHANGELOG_COMMITS) {
+      log('DB-Migration ausführen (migrate-changelog-commits.sql)...');
+      const envRaw7 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch7 = envRaw7.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch7) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl7  = new URL(dbUrlMatch7[1]);
+      const dbUser7 = decodeURIComponent(dbUrl7.username);
+      const dbPass7 = decodeURIComponent(dbUrl7.password);
+      const dbHost7 = dbUrl7.hostname;
+      const dbPort7 = dbUrl7.port || '3306';
+      const dbName7 = dbUrl7.pathname.replace(/^\//, '');
+      const migSql7 = path.join(LOCAL, 'setup', 'migrate-changelog-commits.sql');
+      await put(s, migSql7, `${WEB_ROOT}/.migrate-changelog-commits.sql`);
+      await run(conn, `mysql -h ${dbHost7} -P ${dbPort7} -u '${dbUser7}' -p'${dbPass7}' ${dbName7} < ${WEB_ROOT}/.migrate-changelog-commits.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-changelog-commits.sql`, { silent: true });
+      ok('changelog_commits-Tabelle angelegt');
+    }
+
+    // 7f. Optionale DB-Migration: lastChangelogReadAt
+    if (MIGRATE_CHANGELOG_READ) {
+      log('DB-Migration ausführen (migrate-changelog-read.sql)...');
+      const envRaw6 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch6 = envRaw6.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch6) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl6  = new URL(dbUrlMatch6[1]);
+      const dbUser6 = decodeURIComponent(dbUrl6.username);
+      const dbPass6 = decodeURIComponent(dbUrl6.password);
+      const dbHost6 = dbUrl6.hostname;
+      const dbPort6 = dbUrl6.port || '3306';
+      const dbName6 = dbUrl6.pathname.replace(/^\//, '');
+      const migSql6 = path.join(LOCAL, 'setup', 'migrate-changelog-read.sql');
+      await put(s, migSql6, `${WEB_ROOT}/.migrate-changelog-read.sql`);
+      await run(conn, `mysql -h ${dbHost6} -P ${dbPort6} -u '${dbUser6}' -p'${dbPass6}' ${dbName6} < ${WEB_ROOT}/.migrate-changelog-read.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-changelog-read.sql`, { silent: true });
+      ok('lastChangelogReadAt-Spalte angelegt');
+    }
+
+    // 7d. Optionale DB-Migration: recipe_reports
+    if (MIGRATE_REPORTS) {
+      log('DB-Migration ausführen (migrate-reports.sql)...');
+      const envRaw4 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch4 = envRaw4.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch4) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl4  = new URL(dbUrlMatch4[1]);
+      const dbUser4 = decodeURIComponent(dbUrl4.username);
+      const dbPass4 = decodeURIComponent(dbUrl4.password);
+      const dbHost4 = dbUrl4.hostname;
+      const dbPort4 = dbUrl4.port || '3306';
+      const dbName4 = dbUrl4.pathname.replace(/^\//, '');
+      const migSql4 = path.join(LOCAL, 'setup', 'migrate-reports.sql');
+      await put(s, migSql4, `${WEB_ROOT}/.migrate-reports.sql`);
+      await run(conn, `mysql -h ${dbHost4} -P ${dbPort4} -u '${dbUser4}' -p'${dbPass4}' ${dbName4} < ${WEB_ROOT}/.migrate-reports.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-reports.sql`, { silent: true });
+      ok('recipe_reports-Tabelle angelegt');
+    }
+
     // 8. Optionale Bereinigung alter Node-Artefakte
     if (CLEANUP) {
       log('Alte Node-/Keepalive-/Watchdog-Artefakte entfernen...');
@@ -201,7 +333,32 @@ async function main() {
       console.log('   ℹ  .app/backend/dist (Node-Code) bleibt vorerst – .app/backend/.env wird von config.php benötigt.');
     }
 
-    // 8. Verifikation
+    // 8. Git-Commits für Changelog hochladen (überschreibt bei jedem Deploy)
+    log('Git-Commits für Changelog hochladen...');
+    try {
+      const deployTag  = new Date().toISOString().slice(0, 16); // "2026-06-05T14:30"
+      const gitLogRaw  = execSync(
+        'git log --format="%H|%h|%s|%ad|%an" --date=short -50',
+        { cwd: LOCAL }
+      ).toString().trim();
+      const commits = gitLogRaw.split('\n').filter(Boolean).map((line) => {
+        const parts  = line.split('|');
+        const hash   = parts[0] ?? '';
+        const short  = parts[1] ?? '';
+        const message= parts[2] ?? '';
+        const date   = parts[3] ?? '';
+        const author = parts[4] ?? '';
+        return { hash, short, message, date, author };
+      });
+      // Format: { deployTag, commits }  – deployTag gruppiert Commits eines Deploys
+      const payload = { deployTag, commits };
+      await writeRemote(s, JSON.stringify(payload, null, 2), `${WEB_ROOT}/api/.pending-commits.json`);
+      ok(`${commits.length} Commits hochgeladen (api/.pending-commits.json, deployTag: ${deployTag})`);
+    } catch (e) {
+      err(`Commits konnten nicht hochgeladen werden: ${e.message}`);
+    }
+
+    // 9. Verifikation
     log('Verifikation...');
     const front = await httpGet(`${SITE}/`);
     front.status === 200 ? ok('Frontend erreichbar (200)') : err(`Frontend: HTTP ${front.status}`);
@@ -217,6 +374,12 @@ async function main() {
     console.log('\n✅  Deployment abgeschlossen.');
     console.log('   Login testen:  ' + SITE + '  → "Mit Google anmelden"');
     if (!MIGRATE) console.log('   Tipp: einmalig  "node deploy.js --migrate"  ausführen um die DB-Migration (Sharing) einzuspielen.');
+    if (!MIGRATE_INVITATIONS) console.log('   Tipp: einmalig  "node deploy.js --migrate-invitations"  ausführen um account_invitations anzulegen.');
+    if (!MIGRATE_ADMIN)   console.log('   Tipp: einmalig  "node deploy.js --migrate-admin"  ausführen um das isAdmin-Flag anzulegen.');
+    if (!MIGRATE_REPORTS)   console.log('   Tipp: einmalig  "node deploy.js --migrate-reports"    ausführen um recipe_reports anzulegen.');
+    if (!MIGRATE_CHANGELOG)      console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog"       ausführen um changelog_entries anzulegen.');
+    if (!MIGRATE_CHANGELOG_READ)    console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-read"     ausführen um lastChangelogReadAt anzulegen.');
+    if (!MIGRATE_CHANGELOG_COMMITS) console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-commits"  ausführen um changelog_commits anzulegen.');
     if (!CLEANUP) console.log('   Tipp: nach erfolgreichem Test  "node deploy.js --cleanup"  für die Bereinigung.');
 
   } finally {

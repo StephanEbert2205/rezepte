@@ -49,6 +49,7 @@ final class Fetch
             CURLOPT_CONNECTTIMEOUT => $timeout,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_ENCODING       => '',   // gzip/deflate/br automatisch dekodieren
             CURLOPT_HTTPHEADER     => [
                 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
                 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',

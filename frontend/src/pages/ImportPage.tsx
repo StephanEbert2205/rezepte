@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRef, useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Link2, Loader2, CheckCircle, AlertCircle, Plus, Trash2, PenLine,
   Camera, Sparkles, ImageOff,
@@ -8,26 +8,28 @@ import { recipeApi, CreateRecipeData, CreateIngredient, PrefilledData } from '..
 
 type Tab = 'url' | 'manual' | 'photo';
 
+/** Foto-Erkennung vorübergehend deaktiviert – Code bleibt erhalten. */
+const PHOTO_ENABLED = false;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // URL-Import
 // ─────────────────────────────────────────────────────────────────────────────
 
 type UrlStatus = 'idle' | 'loading' | 'success' | 'duplicate' | 'error';
 
-function UrlImport() {
+function UrlImport({ initialUrl }: { initialUrl?: string }) {
   const navigate = useNavigate();
-  const [url, setUrl]       = useState('');
-  const [status, setStatus] = useState<UrlStatus>('idle');
-  const [message, setMessage] = useState('');
+  const [url, setUrl]           = useState(initialUrl ?? '');
+  const [status, setStatus]     = useState<UrlStatus>('idle');
+  const [message, setMessage]   = useState('');
   const [recipeId, setRecipeId] = useState<number | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url.trim()) return;
+  /** Gemeinsame Import-Logik (manuell + auto). */
+  const doImport = async (target: string) => {
     setStatus('loading');
     setMessage('');
     try {
-      const result = await recipeApi.import(url.trim());
+      const result = await recipeApi.import(target.trim());
       setRecipeId(result.id);
       setStatus('success');
     } catch (err: unknown) {
@@ -41,6 +43,19 @@ function UrlImport() {
         setMessage(ax.response?.data?.error ?? 'Import fehlgeschlagen. Bitte URL prüfen.');
       }
     }
+  };
+
+  /** Auto-Import beim Öffnen über die Teilen-Funktion. */
+  useEffect(() => {
+    if (initialUrl?.startsWith('http')) {
+      doImport(initialUrl);
+    }
+  }, [initialUrl]); // initialUrl ändert sich nach Mount nicht mehr
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    await doImport(url.trim());
   };
 
   const reset = () => { setUrl(''); setStatus('idle'); setMessage(''); setRecipeId(null); };
@@ -536,7 +551,12 @@ function ManualEntry({ initialData }: ManualEntryProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ImportPage() {
-  const [tab, setTab]         = useState<Tab>('url');
+  // Web Share Target: Browser übergibt URL als ?url= oder als Fallback ?text=
+  const [searchParams] = useSearchParams();
+  const rawShared = searchParams.get('url') || searchParams.get('text') || '';
+  const sharedUrl = rawShared.trim().startsWith('http') ? rawShared.trim() : '';
+
+  const [tab, setTab]         = useState<Tab>(sharedUrl ? 'url' : 'url');
   const [prefill, setPrefill] = useState<PrefilledData | null>(null);
   const [prefillKey, setPrefillKey] = useState(0);
 
@@ -548,7 +568,7 @@ export default function ImportPage() {
 
   const tabs: { id: Tab; icon: React.ElementType; label: string }[] = [
     { id: 'url',    icon: Link2,    label: 'Per URL importieren' },
-    { id: 'photo',  icon: Camera,   label: 'Foto' },
+    ...(PHOTO_ENABLED ? [{ id: 'photo' as Tab, icon: Camera,  label: 'Foto' }] : []),
     { id: 'manual', icon: PenLine,  label: 'Manuell eingeben' },
   ];
 
@@ -575,8 +595,8 @@ export default function ImportPage() {
         ))}
       </div>
 
-      {tab === 'url'    && <UrlImport />}
-      {tab === 'photo'  && <PhotoEntry onExtracted={handleExtracted} />}
+      {tab === 'url'    && <UrlImport initialUrl={sharedUrl || undefined} />}
+      {tab === 'photo'  && PHOTO_ENABLED && <PhotoEntry onExtracted={handleExtracted} />}
       {tab === 'manual' && <ManualEntry key={prefillKey} initialData={prefill} />}
     </div>
   );

@@ -25,22 +25,35 @@ final class Auth
         session_start();
     }
 
-    /** @return array{id:int,name:string,email:string,picture:?string}|null */
+    /** @return array{id:int,name:string,email:string,picture:?string,isAdmin:bool,hasUnreadChangelog:bool}|null */
     public static function currentUser(): ?array
     {
         $uid = $_SESSION['userId'] ?? null;
         if (!is_int($uid) && !(is_string($uid) && ctype_digit($uid))) {
             return null;
         }
-        $row = Db::one("SELECT `id`, `name`, `email`, `picture` FROM `users` WHERE `id` = ?", [(int) $uid]);
+        $row = Db::one(
+            "SELECT u.`id`, u.`name`, u.`email`, u.`picture`,
+                    COALESCE(u.`isAdmin`, 0) AS `isAdmin`,
+                    EXISTS (
+                        SELECT 1 FROM `changelog_entries` ce
+                        WHERE ce.`isPublished` = 1
+                          AND (u.`lastChangelogReadAt` IS NULL
+                               OR ce.`createdAt` > u.`lastChangelogReadAt`)
+                    ) AS `hasUnreadChangelog`
+             FROM `users` u WHERE u.`id` = ?",
+            [(int) $uid]
+        );
         if ($row === null) {
             return null;
         }
         return [
-            'id'      => (int) $row['id'],
-            'name'    => $row['name'],
-            'email'   => $row['email'],
-            'picture' => $row['picture'],
+            'id'                  => (int) $row['id'],
+            'name'                => $row['name'],
+            'email'               => $row['email'],
+            'picture'             => $row['picture'],
+            'isAdmin'             => (bool) (int) $row['isAdmin'],
+            'hasUnreadChangelog'  => (bool) (int) $row['hasUnreadChangelog'],
         ];
     }
 
@@ -50,6 +63,16 @@ final class Auth
         $user = self::currentUser();
         if ($user === null) {
             Response::error('Nicht angemeldet', 401);
+        }
+        return $user;
+    }
+
+    /** Erzwingt Admin-Rechte; sendet 401/403 falls nicht berechtigt. */
+    public static function requireAdmin(): array
+    {
+        $user = self::require();
+        if (!$user['isAdmin']) {
+            Response::error('Keine Admin-Berechtigung', 403);
         }
         return $user;
     }

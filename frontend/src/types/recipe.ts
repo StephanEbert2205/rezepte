@@ -125,3 +125,16 @@ export interface AccountLink {
   linkedUser: SharedUser;
   createdAt: string;
 }
+
+/** Offene Einladung (E-Mail-Adresse noch ohne Konto). */
+export interface Invitation {
+  id: number;
+  email: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+/** Antwort von POST /accounts/links – entweder ein Link-Request oder eine Einladung. */
+export type RequestLinkResult =
+  | ({ type: 'link' } & AccountLink)
+  | { type: 'invitation'; id: number; email: string; expiresAt: string; createdAt: string };
