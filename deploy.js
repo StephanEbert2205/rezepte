@@ -25,8 +25,9 @@
  *   node deploy.js --migrate --cleanup   – alles auf einmal
  *
  * KI-Changelog:
- *   Setzt ANTHROPIC_API_KEY in .deploy.env. Beim Deploy mit -m wird automatisch
- *   ein nutzerfreundlicher Changelog-Entwurf per Claude API generiert.
+ *   Setzt GEMINI_API_KEY in Server-.env oder .deploy.env. Beim Deploy mit -m wird
+ *   automatisch ein nutzerfreundlicher Changelog-Entwurf per Google Gemini generiert.
+ *   Kostenlosen Key: https://aistudio.google.com (keine Kreditkarte nötig).
  */
 
 'use strict';
@@ -143,9 +144,11 @@ function httpsPost(hostname, path, headers, body) {
 }
 
 /**
- * Ruft die Claude API auf und generiert einen nutzerfreundlichen
+ * Ruft die Google Gemini API auf und generiert einen nutzerfreundlichen
  * Changelog-Entwurf (Titel + Bullet-Points auf Deutsch) aus Commit-Nachrichten.
  * Gibt { title, body } zurück oder null bei Fehler / fehlendem API-Key.
+ *
+ * Kostenlosen API-Key unter https://aistudio.google.com besorgen (keine Kreditkarte nötig).
  */
 async function generateChangelogDraft(commits, apiKey) {
   if (!apiKey || !commits.length) return null;
@@ -171,34 +174,26 @@ async function generateChangelogDraft(commits, apiKey) {
 
   try {
     const res = await httpsPost(
-      'api.anthropic.com',
-      '/v1/messages',
-      {
-        'Content-Type':      'application/json',
-        'x-api-key':         apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      {
-        model:      'claude-haiku-4-5',
-        max_tokens: 400,
-        messages:   [{ role: 'user', content: prompt }],
-      }
+      'generativelanguage.googleapis.com',
+      `/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      { 'Content-Type': 'application/json' },
+      { contents: [{ parts: [{ text: prompt }] }] }
     );
 
     if (res.status !== 200) {
-      err(`Claude API Fehler ${res.status}`);
+      err(`Gemini API Fehler ${res.status}: ${JSON.stringify(res.body)}`);
       return null;
     }
 
-    const text = res.body?.content?.[0]?.text ?? '';
-    // JSON aus Antwort extrahieren (auch wenn Text darum herum steht)
+    const text = res.body?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    // JSON aus Antwort extrahieren (Gemini schreibt manchmal Markdown-Backticks drumherum)
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) { err('Claude API: kein JSON in Antwort'); return null; }
+    if (!match) { err('Gemini API: kein JSON in Antwort'); return null; }
     const draft = JSON.parse(match[0]);
     if (!draft.title || !draft.body) return null;
     return draft;
   } catch (e) {
-    err(`Claude API Ausnahme: ${e.message}`);
+    err(`Gemini API Ausnahme: ${e.message}`);
     return null;
   }
 }
@@ -272,11 +267,11 @@ async function main() {
       err('.app/backend/.env FEHLT! config.php kann DB/OAuth nicht lesen → bitte anlegen.');
     }
 
-    // ANTHROPIC_API_KEY: zuerst Server-.env, dann lokale .deploy.env
-    const serverAnthropicMatch = serverEnvRaw.match(/ANTHROPIC_API_KEY=["']?([^\s"'\n]+)/);
-    const anthropicKey = serverAnthropicMatch?.[1] ?? process.env.ANTHROPIC_API_KEY ?? '';
-    if (anthropicKey) ok('ANTHROPIC_API_KEY aus Server-.env geladen');
-    else ok('ANTHROPIC_API_KEY nicht gefunden – KI-Entwurf wird übersprungen');
+    // GEMINI_API_KEY: zuerst Server-.env, dann lokale .deploy.env
+    const serverGeminiMatch = serverEnvRaw.match(/GEMINI_API_KEY=["']?([^\s"'\n]+)/);
+    const anthropicKey = serverGeminiMatch?.[1] ?? process.env.GEMINI_API_KEY ?? '';
+    if (anthropicKey) ok('GEMINI_API_KEY aus Server-.env geladen');
+    else ok('GEMINI_API_KEY nicht gefunden – KI-Entwurf wird übersprungen');
 
     // 4. PHP-Backend hochladen → webroot/api/
     log('PHP-Backend hochladen (api/)...');
@@ -511,7 +506,7 @@ async function main() {
           ok('KI-Entwurf: kein Ergebnis (Commits evtl. nur technischer Natur)');
         }
       } else if (COMMIT_MSG && !anthropicKey) {
-        ok('KI-Entwurf übersprungen (ANTHROPIC_API_KEY weder in Server-.env noch in .deploy.env)');
+        ok('KI-Entwurf übersprungen (GEMINI_API_KEY weder in Server-.env noch in .deploy.env)');
       }
 
       const payload = { deployTag, commits, ...(aiDraft ? { aiDraft } : {}) };
@@ -545,7 +540,8 @@ async function main() {
     if (!MIGRATE_CHANGELOG_COMMITS) console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-commits"  ausführen um changelog_commits anzulegen.');
     if (!MIGRATE_CHANGELOG_AI)      console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-ai"       ausführen um isAiGenerated-Spalte anzulegen.');
     if (COMMIT_MSG && !anthropicKey) {
-      console.log('   Tipp: ANTHROPIC_API_KEY in der Server-.env (.app/backend/.env) oder lokal in .deploy.env eintragen um KI-Changelog-Entwürfe zu aktivieren.');
+      console.log('   Tipp: GEMINI_API_KEY in der Server-.env (.app/backend/.env) oder lokal in .deploy.env eintragen um KI-Changelog-Entwürfe zu aktivieren.');
+      console.log('         Kostenlosen Key unter https://aistudio.google.com erstellen (keine Kreditkarte nötig).');
     }
     if (!CLEANUP) console.log('   Tipp: nach erfolgreichem Test  "node deploy.js --cleanup"  für die Bereinigung.');
 
