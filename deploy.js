@@ -262,11 +262,21 @@ async function main() {
   const s = await sftp(conn);
 
   try {
-    // 3. .env-Check (config.php benötigt .app/backend/.env)
+    // 3. .env lesen (config.php + API-Keys)
     log('Prod-Konfiguration prüfen (.app/backend/.env)...');
-    const envExists = await run(conn, `test -f ${WEB_ROOT}/.app/backend/.env && echo yes || echo no`, { silent: true });
-    if (envExists.trim() === 'yes') ok('.app/backend/.env vorhanden (DB/OAuth-Quelle)');
-    else err('.app/backend/.env FEHLT! config.php kann DB/OAuth nicht lesen → bitte anlegen.');
+    let serverEnvRaw = '';
+    try {
+      serverEnvRaw = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      ok('.app/backend/.env vorhanden (DB/OAuth-Quelle)');
+    } catch {
+      err('.app/backend/.env FEHLT! config.php kann DB/OAuth nicht lesen → bitte anlegen.');
+    }
+
+    // ANTHROPIC_API_KEY: zuerst Server-.env, dann lokale .deploy.env
+    const serverAnthropicMatch = serverEnvRaw.match(/ANTHROPIC_API_KEY=["']?([^\s"'\n]+)/);
+    const anthropicKey = serverAnthropicMatch?.[1] ?? process.env.ANTHROPIC_API_KEY ?? '';
+    if (anthropicKey) ok('ANTHROPIC_API_KEY aus Server-.env geladen');
+    else ok('ANTHROPIC_API_KEY nicht gefunden – KI-Entwurf wird übersprungen');
 
     // 4. PHP-Backend hochladen → webroot/api/
     log('PHP-Backend hochladen (api/)...');
@@ -488,7 +498,6 @@ async function main() {
 
       // KI-Entwurf generieren (nur beim Deploy mit -m und wenn API-Key vorhanden)
       let aiDraft = null;
-      const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
       if (COMMIT_MSG && anthropicKey) {
         log('KI-Changelog-Entwurf generieren (Claude API)...');
         // Nur Commits seit dem vorherigen Deploy (die noch nicht in der DB sind)
@@ -502,7 +511,7 @@ async function main() {
           ok('KI-Entwurf: kein Ergebnis (Commits evtl. nur technischer Natur)');
         }
       } else if (COMMIT_MSG && !anthropicKey) {
-        ok('KI-Entwurf übersprungen (ANTHROPIC_API_KEY fehlt in .deploy.env)');
+        ok('KI-Entwurf übersprungen (ANTHROPIC_API_KEY weder in Server-.env noch in .deploy.env)');
       }
 
       const payload = { deployTag, commits, ...(aiDraft ? { aiDraft } : {}) };
@@ -535,8 +544,8 @@ async function main() {
     if (!MIGRATE_CHANGELOG_READ)    console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-read"     ausführen um lastChangelogReadAt anzulegen.');
     if (!MIGRATE_CHANGELOG_COMMITS) console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-commits"  ausführen um changelog_commits anzulegen.');
     if (!MIGRATE_CHANGELOG_AI)      console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-ai"       ausführen um isAiGenerated-Spalte anzulegen.');
-    if (COMMIT_MSG && !process.env.ANTHROPIC_API_KEY) {
-      console.log('   Tipp: ANTHROPIC_API_KEY in .deploy.env eintragen um automatische KI-Changelog-Entwürfe zu aktivieren.');
+    if (COMMIT_MSG && !anthropicKey) {
+      console.log('   Tipp: ANTHROPIC_API_KEY in der Server-.env (.app/backend/.env) oder lokal in .deploy.env eintragen um KI-Changelog-Entwürfe zu aktivieren.');
     }
     if (!CLEANUP) console.log('   Tipp: nach erfolgreichem Test  "node deploy.js --cleanup"  für die Bereinigung.');
 
