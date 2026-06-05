@@ -11,14 +11,22 @@
  * Geheimnisse (DB, Google-OAuth) liest config.php aus der bereits vorhandenen
  * .app/backend/.env – es werden also keine Credentials neu hochgeladen.
  *
- * Aufruf:  node deploy.js            (deployt)
- *          node deploy.js --cleanup  (deployt + entfernt alte Node-Artefakte)
- *          node deploy.js --migrate  (deployt + führt DB-Migration aus)
- *          node deploy.js --migrate-invitations  (deployt + legt account_invitations-Tabelle an)
- *          node deploy.js --migrate-changelog         (deployt + legt changelog_entries-Tabelle an)
- *          node deploy.js --migrate-changelog-read    (deployt + fügt lastChangelogReadAt-Spalte hinzu)
- *          node deploy.js --migrate-changelog-commits (deployt + legt changelog_commits-Tabelle an)
- *          node deploy.js --migrate --cleanup  (alles auf einmal)
+ * Aufruf:
+ *   node deploy.js                       – deployt (ohne Git-Commit)
+ *   node deploy.js -m "Beschreibung"     – committed alles, pusht zu GitHub,
+ *                                          generiert KI-Changelog-Entwurf, deployt
+ *   node deploy.js --cleanup             – deployt + entfernt alte Node-Artefakte
+ *   node deploy.js --migrate             – deployt + DB-Migration (Sharing)
+ *   node deploy.js --migrate-invitations – legt account_invitations an
+ *   node deploy.js --migrate-changelog   – legt changelog_entries an
+ *   node deploy.js --migrate-changelog-read    – fügt lastChangelogReadAt hinzu
+ *   node deploy.js --migrate-changelog-commits – legt changelog_commits an
+ *   node deploy.js --migrate-changelog-ai      – fügt isAiGenerated hinzu
+ *   node deploy.js --migrate --cleanup   – alles auf einmal
+ *
+ * KI-Changelog:
+ *   Setzt ANTHROPIC_API_KEY in .deploy.env. Beim Deploy mit -m wird automatisch
+ *   ein nutzerfreundlicher Changelog-Entwurf per Claude API generiert.
  */
 
 'use strict';
@@ -54,6 +62,11 @@ const MIGRATE_REPORTS      = process.argv.includes('--migrate-reports');
 const MIGRATE_CHANGELOG         = process.argv.includes('--migrate-changelog');
 const MIGRATE_CHANGELOG_READ    = process.argv.includes('--migrate-changelog-read');
 const MIGRATE_CHANGELOG_COMMITS = process.argv.includes('--migrate-changelog-commits');
+const MIGRATE_CHANGELOG_AI      = process.argv.includes('--migrate-changelog-ai');
+
+// -m "Commit-Nachricht" → auto-commit + push + KI-Changelog
+const COMMIT_MSG_IDX = process.argv.indexOf('-m');
+const COMMIT_MSG     = COMMIT_MSG_IDX >= 0 ? (process.argv[COMMIT_MSG_IDX + 1] ?? null) : null;
 
 const LOCAL    = __dirname;
 const PHP_SRC  = path.join(LOCAL, 'backend-php');
@@ -108,6 +121,88 @@ function httpGet(url) {
   });
 }
 
+/** Sendet einen HTTPS-POST und gibt den geparsten JSON-Body zurück. */
+function httpsPost(hostname, path, headers, body) {
+  return new Promise((resolve, reject) => {
+    const data = typeof body === 'string' ? body : JSON.stringify(body);
+    const req = https.request(
+      { hostname, path, method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(data) } },
+      (res) => {
+        let out = '';
+        res.on('data', d => out += d);
+        res.on('end', () => {
+          try { resolve({ status: res.statusCode, body: JSON.parse(out) }); }
+          catch { resolve({ status: res.statusCode, body: out }); }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+/**
+ * Ruft die Claude API auf und generiert einen nutzerfreundlichen
+ * Changelog-Entwurf (Titel + Bullet-Points auf Deutsch) aus Commit-Nachrichten.
+ * Gibt { title, body } zurück oder null bei Fehler / fehlendem API-Key.
+ */
+async function generateChangelogDraft(commits, apiKey) {
+  if (!apiKey || !commits.length) return null;
+
+  // Nur nicht-triviale Commits für die KI (Merges / bumps herausfiltern)
+  const relevant = commits.filter(c => !/^(merge|bump|chore|build|ci|style|wip|deploy)/i.test(c.message));
+  if (!relevant.length) return null;
+
+  const commitList = relevant.map(c => `- ${c.message}`).join('\n');
+
+  const prompt =
+    `Du schreibst kurze Changelog-Einträge für eine Familien-Rezepte-App namens "Rezeptsammlung".\n` +
+    `Die Nutzer sind Familienmitglieder ohne technisches Vorwissen.\n\n` +
+    `Folgende Änderungen wurden deployed:\n${commitList}\n\n` +
+    `Schreibe einen knappen, freundlichen Changelog-Eintrag auf Deutsch:\n` +
+    `- Einen kurzen, aussagekräftigen Titel (max. 60 Zeichen)\n` +
+    `- 1–5 Bullet-Points, die beschreiben was sich für den Nutzer verändert hat\n` +
+    `- Kein Fachjargon, keine technischen Details\n` +
+    `- Formuliere aus Nutzersicht ("Rezepte von lecker.de können jetzt importiert werden")\n` +
+    `- Ignoriere rein technische Commits ohne Nutzerauswirkung\n\n` +
+    `Antworte ausschließlich im JSON-Format (kein Markdown drumherum):\n` +
+    `{"title":"...","body":"• ...\\n• ..."}`;
+
+  try {
+    const res = await httpsPost(
+      'api.anthropic.com',
+      '/v1/messages',
+      {
+        'Content-Type':      'application/json',
+        'x-api-key':         apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      {
+        model:      'claude-haiku-4-5',
+        max_tokens: 400,
+        messages:   [{ role: 'user', content: prompt }],
+      }
+    );
+
+    if (res.status !== 200) {
+      err(`Claude API Fehler ${res.status}`);
+      return null;
+    }
+
+    const text = res.body?.content?.[0]?.text ?? '';
+    // JSON aus Antwort extrahieren (auch wenn Text darum herum steht)
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) { err('Claude API: kein JSON in Antwort'); return null; }
+    const draft = JSON.parse(match[0]);
+    if (!draft.title || !draft.body) return null;
+    return draft;
+  } catch (e) {
+    err(`Claude API Ausnahme: ${e.message}`);
+    return null;
+  }
+}
+
 function connect() {
   const conn = new Client();
   return new Promise((res, rej) => {
@@ -131,6 +226,26 @@ function connect() {
 
 async function main() {
   console.log('\n🚀  Rezepte-App Deployment (PHP-Backend)\n');
+
+  // 0. Auto-Commit + Push (nur wenn -m Flag gesetzt)
+  if (COMMIT_MSG) {
+    log(`Git: Änderungen committen und pushen...`);
+    const status = execSync('git status --porcelain', { cwd: LOCAL }).toString().trim();
+    if (status) {
+      // Alle nicht ignorierten Änderungen stagen
+      execSync('git add -A', { cwd: LOCAL, stdio: 'inherit' });
+      // Commit-Nachricht in Temp-Datei schreiben (vermeidet Shell-Escaping-Probleme)
+      const tmpMsg = path.join(os.tmpdir(), `deploy_msg_${Date.now()}.txt`);
+      fs.writeFileSync(tmpMsg, COMMIT_MSG + '\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>', 'utf8');
+      execSync(`git commit -F "${tmpMsg}"`, { cwd: LOCAL, stdio: 'inherit' });
+      fs.unlinkSync(tmpMsg);
+      ok(`Commit erstellt: ${COMMIT_MSG}`);
+    } else {
+      ok('Keine Änderungen zum Committen (Arbeitsverzeichnis sauber)');
+    }
+    execSync('git push origin master', { cwd: LOCAL, stdio: 'inherit' });
+    ok('Push zu GitHub erfolgreich');
+  }
 
   // 1. Frontend bauen
   log('Frontend bauen...');
@@ -264,6 +379,25 @@ async function main() {
       ok('changelog_entries-Tabelle angelegt');
     }
 
+    // 7h. Optionale DB-Migration: isAiGenerated-Spalte
+    if (MIGRATE_CHANGELOG_AI) {
+      log('DB-Migration ausführen (migrate-changelog-ai.sql)...');
+      const envRaw8 = await run(conn, `cat ${WEB_ROOT}/.app/backend/.env`, { silent: true });
+      const dbUrlMatch8 = envRaw8.match(/DATABASE_URL=["']?(mysql:\/\/[^\s"'\n]+)/);
+      if (!dbUrlMatch8) throw new Error('.app/backend/.env enthält keine DATABASE_URL');
+      const dbUrl8  = new URL(dbUrlMatch8[1]);
+      const dbUser8 = decodeURIComponent(dbUrl8.username);
+      const dbPass8 = decodeURIComponent(dbUrl8.password);
+      const dbHost8 = dbUrl8.hostname;
+      const dbPort8 = dbUrl8.port || '3306';
+      const dbName8 = dbUrl8.pathname.replace(/^\//, '');
+      const migSql8 = path.join(LOCAL, 'setup', 'migrate-changelog-ai.sql');
+      await put(s, migSql8, `${WEB_ROOT}/.migrate-changelog-ai.sql`);
+      await run(conn, `mysql -h ${dbHost8} -P ${dbPort8} -u '${dbUser8}' -p'${dbPass8}' ${dbName8} < ${WEB_ROOT}/.migrate-changelog-ai.sql && echo "Migration OK"`);
+      await run(conn, `rm -f ${WEB_ROOT}/.migrate-changelog-ai.sql`, { silent: true });
+      ok('isAiGenerated-Spalte angelegt');
+    }
+
     // 7g. Optionale DB-Migration: changelog_commits
     if (MIGRATE_CHANGELOG_COMMITS) {
       log('DB-Migration ausführen (migrate-changelog-commits.sql)...');
@@ -333,27 +467,47 @@ async function main() {
       console.log('   ℹ  .app/backend/dist (Node-Code) bleibt vorerst – .app/backend/.env wird von config.php benötigt.');
     }
 
-    // 8. Git-Commits für Changelog hochladen (überschreibt bei jedem Deploy)
+    // 8. Git-Commits + optionaler KI-Entwurf hochladen
     log('Git-Commits für Changelog hochladen...');
     try {
-      const deployTag  = new Date().toISOString().slice(0, 16); // "2026-06-05T14:30"
-      const gitLogRaw  = execSync(
+      const deployTag = new Date().toISOString().slice(0, 16); // "2026-06-05T14:30"
+      const gitLogRaw = execSync(
         'git log --format="%H|%h|%s|%ad|%an" --date=short -50',
         { cwd: LOCAL }
       ).toString().trim();
       const commits = gitLogRaw.split('\n').filter(Boolean).map((line) => {
-        const parts  = line.split('|');
-        const hash   = parts[0] ?? '';
-        const short  = parts[1] ?? '';
-        const message= parts[2] ?? '';
-        const date   = parts[3] ?? '';
-        const author = parts[4] ?? '';
-        return { hash, short, message, date, author };
+        const parts   = line.split('|');
+        return {
+          hash:    parts[0] ?? '',
+          short:   parts[1] ?? '',
+          message: parts[2] ?? '',
+          date:    parts[3] ?? '',
+          author:  parts[4] ?? '',
+        };
       });
-      // Format: { deployTag, commits }  – deployTag gruppiert Commits eines Deploys
-      const payload = { deployTag, commits };
+
+      // KI-Entwurf generieren (nur beim Deploy mit -m und wenn API-Key vorhanden)
+      let aiDraft = null;
+      const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
+      if (COMMIT_MSG && anthropicKey) {
+        log('KI-Changelog-Entwurf generieren (Claude API)...');
+        // Nur Commits seit dem vorherigen Deploy (die noch nicht in der DB sind)
+        // Als Näherung: alle Commits der letzten 24h
+        const since = new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
+        const newCommits = commits.filter(c => c.date >= since);
+        aiDraft = await generateChangelogDraft(newCommits.length ? newCommits : commits.slice(0, 5), anthropicKey);
+        if (aiDraft) {
+          ok(`KI-Entwurf generiert: "${aiDraft.title}"`);
+        } else {
+          ok('KI-Entwurf: kein Ergebnis (Commits evtl. nur technischer Natur)');
+        }
+      } else if (COMMIT_MSG && !anthropicKey) {
+        ok('KI-Entwurf übersprungen (ANTHROPIC_API_KEY fehlt in .deploy.env)');
+      }
+
+      const payload = { deployTag, commits, ...(aiDraft ? { aiDraft } : {}) };
       await writeRemote(s, JSON.stringify(payload, null, 2), `${WEB_ROOT}/api/.pending-commits.json`);
-      ok(`${commits.length} Commits hochgeladen (api/.pending-commits.json, deployTag: ${deployTag})`);
+      ok(`${commits.length} Commits hochgeladen (deployTag: ${deployTag}${aiDraft ? ', inkl. KI-Entwurf' : ''})`);
     } catch (e) {
       err(`Commits konnten nicht hochgeladen werden: ${e.message}`);
     }
@@ -380,6 +534,10 @@ async function main() {
     if (!MIGRATE_CHANGELOG)      console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog"       ausführen um changelog_entries anzulegen.');
     if (!MIGRATE_CHANGELOG_READ)    console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-read"     ausführen um lastChangelogReadAt anzulegen.');
     if (!MIGRATE_CHANGELOG_COMMITS) console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-commits"  ausführen um changelog_commits anzulegen.');
+    if (!MIGRATE_CHANGELOG_AI)      console.log('   Tipp: einmalig  "node deploy.js --migrate-changelog-ai"       ausführen um isAiGenerated-Spalte anzulegen.');
+    if (COMMIT_MSG && !process.env.ANTHROPIC_API_KEY) {
+      console.log('   Tipp: ANTHROPIC_API_KEY in .deploy.env eintragen um automatische KI-Changelog-Entwürfe zu aktivieren.');
+    }
     if (!CLEANUP) console.log('   Tipp: nach erfolgreichem Test  "node deploy.js --cleanup"  für die Bereinigung.');
 
   } finally {

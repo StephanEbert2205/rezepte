@@ -557,6 +557,24 @@ if (str_starts_with($path, '/admin')) {
     if ($path === '/admin/changelog/pending-count' && $method === 'GET') {
         Response::json(['count' => Changelog::countPending()]);
     }
+
+    // ── KI-Entwürfe ──────────────────────────────────────────────────────────
+
+    // GET /admin/changelog/ai-pending  – alle ausstehenden KI-Entwürfe
+    if ($path === '/admin/changelog/ai-pending' && $method === 'GET') {
+        Response::json(Changelog::listAiPending());
+    }
+
+    // POST /admin/changelog/:id/approve  – KI-Entwurf aufnehmen (veröffentlichen)
+    if (preg_match('#^/admin/changelog/(\d+)/approve$#', $path, $m) && $method === 'POST') {
+        Response::json(Changelog::approveAiDraft((int) $m[1]));
+    }
+
+    // DELETE /admin/changelog/:id/ai  – KI-Entwurf überspringen (löschen)
+    if (preg_match('#^/admin/changelog/(\d+)/ai$#', $path, $m) && $method === 'DELETE') {
+        Changelog::skipAiDraft((int) $m[1]);
+        Response::noContent();
+    }
 }
 
 // ── Fallback ─────────────────────────────────────────────────────────────────

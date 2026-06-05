@@ -287,15 +287,16 @@ export const adminApi = {
 // ── Changelog-API ─────────────────────────────────────────────────────────────
 
 export interface ChangelogEntry {
-  id: number;
-  version: string | null;
-  releaseDate: string;      // YYYY-MM-DD
-  title: string;
-  body: string;
-  isPublished: boolean | number;
-  gitHash: string | null;
-  createdAt: string;
-  updatedAt: string;
+  id:             number;
+  version:        string | null;
+  releaseDate:    string;           // YYYY-MM-DD
+  title:          string;
+  body:           string;
+  isPublished:    boolean | number;
+  isAiGenerated:  boolean | number;
+  gitHash:        string | null;
+  createdAt:      string;
+  updatedAt:      string;
 }
 
 /** Commit aus dem .pending-commits.json-Upload (noch nicht in DB) */
@@ -327,6 +328,8 @@ export interface ImportResult {
   imported:        number;
   skippedExisting: number;
   deployTag:       string;
+  /** Neu erzeugter KI-Entwurf, falls im JSON vorhanden. */
+  aiEntry:         ChangelogEntry | null;
 }
 
 export const changelogApi = {
@@ -387,6 +390,19 @@ export const changelogApi = {
   /** Anzahl ausstehender Commits (für Badge). */
   pendingCount: () =>
     api.get<{ count: number }>('/admin/changelog/pending-count').then((r) => r.data),
+
+  // ── KI-Entwürfe ────────────────────────────────────────────────────────
+  /** Alle vom KI generierten, noch nicht freigegebenen Entwürfe. */
+  listAiPending: () =>
+    api.get<ChangelogEntry[]>('/admin/changelog/ai-pending').then((r) => r.data),
+
+  /** KI-Entwurf aufnehmen → wird sofort veröffentlicht. */
+  approveAiDraft: (id: number) =>
+    api.post<ChangelogEntry>(`/admin/changelog/${id}/approve`).then((r) => r.data),
+
+  /** KI-Entwurf überspringen → wird gelöscht. */
+  skipAiDraft: (id: number) =>
+    api.delete(`/admin/changelog/${id}/ai`),
 };
 
 export default api;

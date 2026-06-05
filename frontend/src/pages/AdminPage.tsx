@@ -10,7 +10,7 @@ import {
   Search, ChevronLeft, ChevronRight, ExternalLink, Flag, CheckCheck,
   Megaphone, Plus, Pencil, Trash2, Globe, EyeOff, GitCommit, Loader2, X,
   CheckCircle, Download, Check, SkipForward, Zap, ListChecks, FileText,
-  RefreshCw,
+  RefreshCw, Sparkles,
 } from 'lucide-react';
 import { adminApi, AdminUser, AdminReport, changelogApi, ChangelogEntry, ChangelogCommit, ImportResult } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -635,6 +635,12 @@ function CommitsReviewTab({ onDraftCreated }: { onDraftCreated: () => void }) {
   const [filter, setFilter] = useState<CommitFilter>('pending');
   const [importMsg, setImportMsg] = useState<ImportResult | null>(null);
 
+  // KI-Entwürfe
+  const { data: aiPending = [], refetch: refetchAi } = useQuery({
+    queryKey: ['admin-cl-ai-pending'],
+    queryFn:  changelogApi.listAiPending,
+  });
+
   const { data: commits = [], isLoading } = useQuery({
     queryKey: ['admin-cl-commits', filter],
     queryFn:  () => changelogApi.listCommits(filter),
@@ -649,11 +655,19 @@ function CommitsReviewTab({ onDraftCreated }: { onDraftCreated: () => void }) {
   function invalidateAll() {
     qc.invalidateQueries({ queryKey: ['admin-cl-commits'] });
     qc.invalidateQueries({ queryKey: ['changelog-pending-count'] });
+    qc.invalidateQueries({ queryKey: ['admin-cl-ai-pending'] });
   }
 
   const importMutation = useMutation({
     mutationFn: changelogApi.importCommits,
-    onSuccess: (result) => { setImportMsg(result); invalidateAll(); },
+    onSuccess: (result) => {
+      setImportMsg(result);
+      invalidateAll();
+      // Neuen KI-Entwurf anlegen → Einträge-Tab öffnen
+      if (result.aiEntry) {
+        qc.invalidateQueries({ queryKey: ['admin-changelog'] });
+      }
+    },
   });
 
   const decideMutation = useMutation({
@@ -678,13 +692,97 @@ function CommitsReviewTab({ onDraftCreated }: { onDraftCreated: () => void }) {
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: (id: number) => changelogApi.approveAiDraft(id),
+    onSuccess: () => {
+      refetchAi();
+      qc.invalidateQueries({ queryKey: ['admin-changelog'] });
+      qc.invalidateQueries({ queryKey: ['changelog'] });
+    },
+  });
+
+  const skipAiMutation = useMutation({
+    mutationFn: (id: number) => changelogApi.skipAiDraft(id),
+    onSuccess: () => refetchAi(),
+  });
+
   const allCommits    = commits as ChangelogCommit[];
   const pendingCount2 = allCommits.filter((c) => c.status === 'pending').length;
   const nonTechPending= allCommits.filter((c) => c.status === 'pending' && !c.isTechnical).length;
 
   return (
-    <div className="space-y-4">
-      {/* Import-Leiste */}
+    <div className="space-y-5">
+
+      {/* ── KI-Entwürfe ─────────────────────────────────────────────────── */}
+      {(aiPending as ChangelogEntry[]).length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-brand-500" />
+            <h3 className="text-sm font-semibold text-gray-800">
+              KI-generierte Entwürfe ({(aiPending as ChangelogEntry[]).length})
+            </h3>
+            <span className="text-xs text-gray-400">– vom letzten Deploy automatisch erstellt</span>
+          </div>
+
+          {(aiPending as ChangelogEntry[]).map((entry) => (
+            <div
+              key={entry.id}
+              className="bg-gradient-to-br from-brand-50 to-white rounded-2xl border border-brand-100 p-4"
+            >
+              <div className="flex items-start gap-3 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  {/* Datum + KI-Badge */}
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-100 text-brand-700">
+                      <Sparkles className="w-3 h-3" /> KI-Entwurf
+                    </span>
+                    <span className="text-xs text-gray-400">{fmtDate(entry.releaseDate)}</span>
+                  </div>
+                  {/* Titel */}
+                  <p className="font-semibold text-gray-900 text-sm mb-1">{entry.title}</p>
+                  {/* Body */}
+                  {entry.body && (
+                    <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed line-clamp-4">
+                      {entry.body}
+                    </p>
+                  )}
+                </div>
+
+                {/* Aktions-Buttons */}
+                <div className="flex gap-2 shrink-0 flex-wrap">
+                  <button
+                    onClick={() => approveMutation.mutate(entry.id)}
+                    disabled={approveMutation.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Aufnehmen
+                  </button>
+                  <button
+                    onClick={() => skipAiMutation.mutate(entry.id)}
+                    disabled={skipAiMutation.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Überspringen
+                  </button>
+                  <button
+                    onClick={() => { onDraftCreated(); }}
+                    title="Im Einträge-Tab bearbeiten"
+                    className="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div className="border-t border-gray-100 pt-4" />
+        </div>
+      )}
+
+      {/* ── Import-Leiste ────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => importMutation.mutate()}
@@ -701,7 +799,11 @@ function CommitsReviewTab({ onDraftCreated }: { onDraftCreated: () => void }) {
               ? <><span className="text-green-600 font-medium">{importMsg.imported} neu</span>{', '}{importMsg.skippedExisting} bereits bekannt</>
               : <span className="text-gray-400">Alle Commits bereits bekannt</span>
             }
-            {importMsg.deployTag && <span className="ml-1 text-gray-300">{' · '}{importMsg.deployTag}</span>}
+            {importMsg.aiEntry && (
+              <span className="ml-2 flex items-center gap-1 inline-flex text-brand-600">
+                <Sparkles className="w-3 h-3" /> KI-Entwurf erstellt
+              </span>
+            )}
           </span>
         )}
 
@@ -717,7 +819,7 @@ function CommitsReviewTab({ onDraftCreated }: { onDraftCreated: () => void }) {
         )}
       </div>
 
-      {/* Filter + Bulk-Aktionen */}
+      {/* ── Filter + Bulk-Aktionen ───────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {(['pending', 'included', 'skipped'] as CommitFilter[]).map((s) => (
@@ -757,7 +859,7 @@ function CommitsReviewTab({ onDraftCreated }: { onDraftCreated: () => void }) {
         )}
       </div>
 
-      {/* Commit-Liste */}
+      {/* ── Commit-Liste ─────────────────────────────────────────────────── */}
       {isLoading ? <Spinner /> : allCommits.length === 0 ? (
         <Empty text={
           filter === 'pending'
