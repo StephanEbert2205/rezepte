@@ -8,8 +8,8 @@ import { recipeApi, CreateRecipeData, CreateIngredient, PrefilledData } from '..
 
 type Tab = 'url' | 'manual' | 'photo';
 
-/** Foto-Erkennung vorübergehend deaktiviert – Code bleibt erhalten. */
-const PHOTO_ENABLED = false;
+/** Foto-Erkennung via Google Gemini Vision. */
+const PHOTO_ENABLED = true;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // URL-Import

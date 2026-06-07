@@ -2,13 +2,12 @@
 declare(strict_types=1);
 
 /**
- * Extrahiert Rezeptdaten aus einem Foto via Claude Vision API.
+ * Extrahiert Rezeptdaten aus einem Foto via Google Gemini Vision API.
  */
 final class ImageParser
 {
-    private const CLAUDE_URL   = 'https://api.anthropic.com/v1/messages';
-    private const MODEL        = 'claude-3-5-haiku-20241022';
-    private const MAX_TOKENS   = 2048;
+    private const GEMINI_HOST  = 'generativelanguage.googleapis.com';
+    private const MODEL        = 'gemini-2.5-flash-lite';
     private const MAX_BYTES    = 5 * 1024 * 1024;   // 5 MB Upload-Limit
     private const RESIZE_PX    = 1400;               // max. Kantenlänge für KI
     private const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -17,7 +16,7 @@ final class ImageParser
 
     /**
      * @param  array  $file      Ein Eintrag aus $_FILES
-     * @param  string $apiKey    Anthropic-API-Schlüssel
+     * @param  string $apiKey    Gemini-API-Schlüssel
      * @return array             Strukturierte Rezeptdaten (kompatibel mit Validator::createBody)
      * @throws RuntimeException  Bei Konfigurationsfehlern, Validierungsfehlern oder API-Fehlern
      */
@@ -40,7 +39,7 @@ final class ImageParser
         }
 
         [$bytes, $mime] = self::loadAndResize($file['tmp_name'], $file['type']);
-        $raw = self::callClaude($apiKey, base64_encode($bytes), $mime);
+        $raw = self::callGemini($apiKey, base64_encode($bytes), $mime);
         return self::parseResponse($raw);
     }
 
@@ -91,7 +90,7 @@ final class ImageParser
         return [$bytes, 'image/jpeg'];
     }
 
-    private static function callClaude(string $apiKey, string $base64, string $mime): string
+    private static function callGemini(string $apiKey, string $base64, string $mime): string
     {
         $prompt = <<<'PROMPT'
 Extract the complete recipe from this image. Return ONLY a valid JSON object — no markdown, no code fences, no explanation.
@@ -125,34 +124,36 @@ Rules:
 - If this image does not contain a recipe, return {"title":"","ingredients":[],"instructions":[]}.
 PROMPT;
 
+        $url = sprintf(
+            'https://%s/v1beta/models/%s:generateContent?key=%s',
+            self::GEMINI_HOST,
+            self::MODEL,
+            $apiKey
+        );
+
         $payload = json_encode([
-            'model'      => self::MODEL,
-            'max_tokens' => self::MAX_TOKENS,
-            'messages'   => [[
-                'role'    => 'user',
-                'content' => [
+            'contents' => [[
+                'parts' => [
                     [
-                        'type'   => 'image',
-                        'source' => [
-                            'type'       => 'base64',
-                            'media_type' => $mime,
-                            'data'       => $base64,
+                        'inline_data' => [
+                            'mime_type' => $mime,
+                            'data'      => $base64,
                         ],
                     ],
-                    ['type' => 'text', 'text' => $prompt],
+                    ['text' => $prompt],
                 ],
             ]],
+            'generationConfig' => [
+                'maxOutputTokens' => 2048,
+                'temperature'     => 0.1,   // niedrig → deterministische JSON-Ausgabe
+            ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        $ch = curl_init(self::CLAUDE_URL);
+        $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'x-api-key: ' . $apiKey,
-                'anthropic-version: 2023-06-01',
-            ],
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 50,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -166,8 +167,11 @@ PROMPT;
         if ($result === false) {
             throw new RuntimeException('Verbindung zur KI fehlgeschlagen: ' . $curlErr);
         }
-        if ($httpCode === 401) {
-            throw new RuntimeException('Anthropic-API-Schlüssel ungültig oder abgelaufen');
+        if ($httpCode === 401 || $httpCode === 403) {
+            throw new RuntimeException('Gemini-API-Schlüssel ungültig oder abgelaufen');
+        }
+        if ($httpCode === 429) {
+            throw new RuntimeException('KI-Dienst: Anfragelimit erreicht – bitte kurz warten');
         }
         if ($httpCode !== 200) {
             $msg = json_decode($result, true)['error']['message'] ?? ('HTTP ' . $httpCode);
@@ -175,7 +179,7 @@ PROMPT;
         }
 
         $body = json_decode($result, true);
-        return $body['content'][0]['text'] ?? '';
+        return $body['candidates'][0]['content']['parts'][0]['text'] ?? '';
     }
 
     private static function parseResponse(string $raw): array

@@ -152,14 +152,14 @@ if ($path === '/changelog/read' && $method === 'POST') {
 
 // POST /parse-image  – Rezeptfoto via KI analysieren (multipart/form-data)
 if ($path === '/parse-image' && $method === 'POST') {
-    if (empty($cfg['anthropicApiKey'])) {
-        Response::error('KI-Bildanalyse nicht konfiguriert (ANTHROPIC_API_KEY fehlt)', 503);
+    if (empty($cfg['geminiApiKey'])) {
+        Response::error('KI-Bildanalyse nicht konfiguriert (GEMINI_API_KEY fehlt)', 503);
     }
     if (empty($_FILES['image'])) {
         Response::error('Kein Bild empfangen', 400);
     }
     try {
-        $result = ImageParser::parse($_FILES['image'], $cfg['anthropicApiKey']);
+        $result = ImageParser::parse($_FILES['image'], $cfg['geminiApiKey']);
         Response::json($result);
     } catch (RuntimeException $e) {
         Response::error($e->getMessage(), 422);

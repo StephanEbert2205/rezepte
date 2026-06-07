@@ -105,8 +105,8 @@ return [
     'fetchTimeout'        => 12,            // Sekunden
     'maxResponseSize'     => 10 * 1024 * 1024,
     'isProduction'        => $isHttps,
-    // Anthropic-API-Schlüssel für Foto-Analyse (optional)
-    'anthropicApiKey'     => $env['ANTHROPIC_API_KEY'] ?? '',
+    // Gemini-API-Schlüssel für Foto-Analyse und KI-Changelog (optional)
+    'geminiApiKey'        => $env['GEMINI_API_KEY'] ?? '',
     // Absender-Adresse für Einladungs-E-Mails
     'mailFrom'            => $env['MAIL_FROM'] ?? 'noreply@familie-ebert.net',
 ];
