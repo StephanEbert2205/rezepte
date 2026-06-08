@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Link2, Loader2, CheckCircle, AlertCircle, Plus, Trash2, PenLine,
-  Camera, Sparkles, ImageOff,
+  Camera, Sparkles, ImageOff, Image as ImageIcon,
 } from 'lucide-react';
 import { recipeApi, CreateRecipeData, CreateIngredient, PrefilledData } from '../api/client';
 
@@ -167,7 +167,8 @@ interface PhotoEntryProps {
 }
 
 function PhotoEntry({ onExtracted }: PhotoEntryProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);   // Galerie / Dateiauswahl
+  const cameraRef = useRef<HTMLInputElement>(null);   // Kamera direkt
   const [preview, setPreview]   = useState<string | null>(null);
   const [file, setFile]         = useState<File | null>(null);
   const [status, setStatus]     = useState<'idle' | 'loading' | 'error'>('idle');
@@ -212,11 +213,13 @@ function PhotoEntry({ onExtracted }: PhotoEntryProps) {
     <div className="space-y-4">
       {/* Upload-Bereich */}
       <div
-        onClick={() => !status.includes('loading') && inputRef.current?.click()}
+        onClick={() => preview && status !== 'loading' && inputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
-        className={`relative rounded-xl overflow-hidden cursor-pointer transition-colors ${
-          preview ? '' : 'border-2 border-dashed border-gray-200 hover:border-brand-300'
+        className={`relative rounded-xl overflow-hidden transition-colors ${
+          preview
+            ? 'cursor-pointer'
+            : 'border-2 border-dashed border-gray-200 hover:border-brand-300'
         }`}
       >
         {preview ? (
@@ -229,17 +232,44 @@ function PhotoEntry({ onExtracted }: PhotoEntryProps) {
             </div>
           </>
         ) : (
-          <div className="p-12 text-center">
+          <div className="p-8 text-center">
             <Camera className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-sm font-medium text-gray-600 mb-1">Foto aufnehmen oder auswählen</p>
-            <p className="text-xs text-gray-400">JPG, PNG, WEBP · max. 5 MB</p>
-            <p className="text-xs text-gray-400 mt-1">Oder Bild hierher ziehen</p>
+            <p className="text-xs text-gray-400 mb-5">JPG, PNG, WEBP · max. 5 MB</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); cameraRef.current?.click(); }}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Camera className="w-4 h-4" />
+                Foto aufnehmen
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <ImageIcon className="w-4 h-4" />
+                Aus Galerie
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-4">Oder Bild hierher ziehen</p>
           </div>
         )}
+        {/* Galerie / normaler Datei-Dialog */}
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
+          onChange={handleInputChange}
+          className="sr-only"
+        />
+        {/* Kamera direkt (capture wird auf Desktop ignoriert) */}
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
           onChange={handleInputChange}
           className="sr-only"
         />
