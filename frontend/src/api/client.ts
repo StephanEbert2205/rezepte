@@ -10,6 +10,7 @@ const api = axios.create({
 export interface PrefilledData {
   title?: string;
   description?: string;
+  imageUrl?: string;
   servingsOriginal?: number | null;
   prepTime?: number | null;
   cookTime?: number | null;

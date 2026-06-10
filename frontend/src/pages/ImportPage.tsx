@@ -330,7 +330,7 @@ function ManualEntry({ initialData }: ManualEntryProps) {
 
   const [title, setTitle]               = useState(initialData?.title ?? '');
   const [description, setDescription]   = useState(initialData?.description ?? '');
-  const [imageUrl, setImageUrl]         = useState('');
+  const [imageUrl, setImageUrl]         = useState(initialData?.imageUrl ?? '');
   const [servings, setServings]         = useState(initialData?.servingsOriginal != null ? String(initialData.servingsOriginal) : '');
   const [prepTime, setPrepTime]         = useState(initialData?.prepTime != null ? String(initialData.prepTime) : '');
   const [cookTime, setCookTime]         = useState(initialData?.cookTime != null ? String(initialData.cookTime) : '');

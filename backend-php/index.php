@@ -160,6 +160,19 @@ if ($path === '/parse-image' && $method === 'POST') {
     }
     try {
         $result = ImageParser::parse($_FILES['image'], $cfg['geminiApiKey']);
+
+        // Foto als Rezeptbild ablegen (tmp_name ist nach parse() noch vorhanden)
+        $mimeMap   = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        $ext       = $mimeMap[$_FILES['image']['type']] ?? 'jpg';
+        $filename  = bin2hex(random_bytes(12)) . '.' . $ext;
+        $uploadDir = __DIR__ . '/../uploads/recipe-photos';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . '/' . $filename)) {
+            $result['imageUrl'] = $cfg['frontendUrl'] . '/uploads/recipe-photos/' . $filename;
+        }
+
         Response::json($result);
     } catch (RuntimeException $e) {
         Response::error($e->getMessage(), 422);
