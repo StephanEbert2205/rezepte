@@ -150,6 +150,32 @@ if ($path === '/changelog/read' && $method === 'POST') {
     Response::json(['ok' => true]);
 }
 
+// POST /upload-image  – Bild hochladen und URL zurückgeben (ohne OCR)
+if ($path === '/upload-image' && $method === 'POST') {
+    $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    $mime    = $_FILES['image']['type'] ?? '';
+    if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+        Response::error('Kein Bild empfangen', 400);
+    }
+    if (!in_array($mime, $allowed, true)) {
+        Response::error('Nicht unterstütztes Bildformat', 400);
+    }
+    if ($_FILES['image']['size'] > 5 * 1024 * 1024) {
+        Response::error('Bild zu groß (max. 5 MB)', 400);
+    }
+    $mimeMap   = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+    $ext       = $mimeMap[$mime];
+    $filename  = bin2hex(random_bytes(12)) . '.' . $ext;
+    $uploadDir = __DIR__ . '/../uploads/recipe-photos';
+    if (!is_dir($uploadDir)) {
+        @mkdir($uploadDir, 0755, true);
+    }
+    if (!is_dir($uploadDir) || !@move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . '/' . $filename)) {
+        Response::error('Bild konnte nicht gespeichert werden', 500);
+    }
+    Response::json(['url' => $cfg['frontendUrl'] . '/uploads/recipe-photos/' . $filename]);
+}
+
 // POST /parse-image  – Rezeptfoto via KI analysieren (multipart/form-data)
 if ($path === '/parse-image' && $method === 'POST') {
     if (empty($cfg['geminiApiKey'])) {

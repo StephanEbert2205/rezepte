@@ -1,10 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Loader2, X, Plus } from 'lucide-react';
+import { Save, Loader2, X, Plus, Camera, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { recipeApi } from '../api/client';
 import CustomIngredientEditor from '../components/CustomIngredientEditor';
 import { CustomIngredient } from '../types/recipe';
+
+/** Bild im Browser auf max. 1400 px verkleinern bevor es hochgeladen wird. */
+async function resizeImage(file: File, maxPx = 1400): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else                  { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.88);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 export default function EditRecipePage() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +53,10 @@ export default function EditRecipePage() {
   });
   const [newTag, setNewTag] = useState('');
   const [customIngredients, setCustomIngredients] = useState<CustomIngredient[]>([]);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (recipe) {
@@ -94,6 +117,25 @@ export default function EditRecipePage() {
     setForm((f) => ({ ...f, tags: f.tags.filter((t) => t !== tag) }));
   };
 
+  const handleImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setImageUploading(true);
+    setImageUploadError('');
+    try {
+      const resized = await resizeImage(file);
+      const fd = new FormData();
+      fd.append('image', resized, 'photo.jpg');
+      const url = await recipeApi.uploadImage(fd);
+      setForm((f) => ({ ...f, imageUrl: url }));
+    } catch {
+      setImageUploadError('Bild konnte nicht hochgeladen werden');
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10 animate-pulse">
@@ -151,15 +193,63 @@ export default function EditRecipePage() {
             />
           </div>
 
+          {/* Bild-Picker */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Bild-URL</label>
-            <input
-              type="url"
-              value={form.imageUrl}
-              onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-              className="input"
-              placeholder="https://..."
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Bild</label>
+
+            {form.imageUrl ? (
+              <div className="relative rounded-xl overflow-hidden group">
+                <img src={form.imageUrl} alt="" className="w-full max-h-48 object-cover" />
+                {/* Hover-Overlay mit Ersetzen-Buttons */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                  <button type="button" onClick={() => cameraRef.current?.click()}
+                    className="flex items-center gap-1.5 text-sm font-medium bg-white/90 text-gray-800 px-3 py-1.5 rounded-full">
+                    <Camera className="w-4 h-4" /> Kamera
+                  </button>
+                  <button type="button" onClick={() => inputRef.current?.click()}
+                    className="flex items-center gap-1.5 text-sm font-medium bg-white/90 text-gray-800 px-3 py-1.5 rounded-full">
+                    <ImageIcon className="w-4 h-4" /> Galerie
+                  </button>
+                </div>
+                {/* Entfernen-Button */}
+                <button type="button"
+                  onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
+                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+                  title="Bild entfernen">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-gray-200 hover:border-brand-300 rounded-xl transition-colors">
+                {imageUploading ? (
+                  <div className="p-8 flex items-center justify-center gap-2 text-gray-500">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Bild wird hochgeladen…</span>
+                  </div>
+                ) : (
+                  <div className="p-8 flex flex-wrap gap-3 justify-center">
+                    <button type="button" onClick={() => cameraRef.current?.click()}
+                      className="btn-primary flex items-center gap-2">
+                      <Camera className="w-4 h-4" /> Foto aufnehmen
+                    </button>
+                    <button type="button" onClick={() => inputRef.current?.click()}
+                      className="btn-secondary flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" /> Aus Galerie
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {imageUploadError && (
+              <p className="text-red-500 text-sm mt-1">{imageUploadError}</p>
+            )}
+
+            {/* Versteckte File-Inputs */}
+            <input ref={inputRef} type="file" accept="image/*"
+              onChange={handleImageFile} className="sr-only" />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+              onChange={handleImageFile} className="sr-only" />
           </div>
         </div>
 

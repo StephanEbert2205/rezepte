@@ -92,6 +92,12 @@ export const recipeApi = {
       headers: { 'Content-Type': undefined },
     }).then((r) => r.data),
 
+  /** Bild hochladen (ohne OCR) – gibt die öffentliche URL zurück. */
+  uploadImage: (formData: FormData) =>
+    api.post<{ url: string }>('/upload-image', formData, {
+      headers: { 'Content-Type': undefined },
+    }).then((r) => r.data.url),
+
   // ── Freigaben ─────────────────────────────────────────────────────────────
 
   /** Erzeugt einen Freigabe-Token für das Rezept (Kopie-per-Link). */
