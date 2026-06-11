@@ -427,11 +427,22 @@ function ManualEntry({ initialData }: ManualEntryProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
 
-      {/* Banner wenn Daten vom Foto stammen */}
+      {/* Banner + Bildvorschau wenn Daten vom Foto stammen */}
       {initialData && (
-        <div className="flex items-center gap-2.5 text-sm text-brand-700 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3">
-          <Sparkles className="w-4 h-4 shrink-0 text-brand-500" />
-          <span>Vom Foto erkanntes Rezept – bitte Felder prüfen und bei Bedarf anpassen.</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5 text-sm text-brand-700 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3">
+            <Sparkles className="w-4 h-4 shrink-0 text-brand-500" />
+            <span>Vom Foto erkanntes Rezept – bitte Felder prüfen und bei Bedarf anpassen.</span>
+          </div>
+          {initialData.imageUrl && (
+            <div className="rounded-xl overflow-hidden">
+              <img
+                src={initialData.imageUrl}
+                alt="Aufgenommenes Foto"
+                className="w-full max-h-48 object-cover"
+              />
+            </div>
+          )}
         </div>
       )}
 
